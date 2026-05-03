@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "Phone First App",
+    "slug": "phone-first-app",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "phonefirst",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": false
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0F172A"
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
