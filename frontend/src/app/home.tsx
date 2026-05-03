@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Link, router } from 'expo-router';
-import { useRef } from 'react';
-import { GestureResponderEvent, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useMemo } from 'react';
+import { PanResponder, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Screen } from '../components/Screen';
 import { colors, radius, spacing } from '../constants/theme';
@@ -17,25 +17,22 @@ const avatarAccent = '#003577';
 export default function HomeScreen() {
   const currentUser = getCurrentUser();
   const avatarInitial = currentUser?.displayName.trim().charAt(0).toUpperCase();
-  const touchStart = useRef({ x: 0, y: 0 });
-
-  function handleTouchStart(event: GestureResponderEvent) {
-    const { pageX, pageY } = event.nativeEvent;
-    touchStart.current = { x: pageX, y: pageY };
-  }
-
-  function handleTouchEnd(event: GestureResponderEvent) {
-    const { pageX, pageY } = event.nativeEvent;
-    const dx = pageX - touchStart.current.x;
-    const dy = pageY - touchStart.current.y;
-
-    if (dx > 44 && Math.abs(dx) > Math.abs(dy) * 1.15) {
-      router.push('/people');
-    }
-  }
+  const swipeToPeopleResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gestureState) =>
+          gestureState.dx > 12 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.4,
+        onPanResponderRelease: (_, gestureState) => {
+          if (gestureState.dx > 48 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.4) {
+            router.push('/people');
+          }
+        },
+      }),
+    [],
+  );
 
   return (
-    <Screen contentProps={{ onTouchEnd: handleTouchEnd, onTouchStart: handleTouchStart }} scroll={false}>
+    <Screen scrollProps={swipeToPeopleResponder.panHandlers}>
       <View style={styles.homeContent}>
         <View style={styles.topBar}>
           <Link href="/people" asChild>
@@ -98,7 +95,6 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   homeContent: {
-    flex: 1,
     gap: spacing.md,
   },
   topBar: {
