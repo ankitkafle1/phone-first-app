@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Link } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Link, router } from 'expo-router';
+import { useMemo } from 'react';
+import { PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Screen } from '../components/Screen';
 import { colors, radius, spacing } from '../constants/theme';
@@ -8,44 +9,102 @@ import { colors, radius, spacing } from '../constants/theme';
 const people = ['Ankit1', 'Ankit2', 'Ankit3', 'Ankit4', 'Ankit5'];
 
 export default function PeopleScreen() {
+  const swipeUpResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gestureState) =>
+          gestureState.dy < -12 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx) * 1.4,
+        onPanResponderRelease: (_, gestureState) => {
+          if (gestureState.dy < -48 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx) * 1.4) {
+            router.replace('/home');
+          }
+        },
+      }),
+    [],
+  );
+
   return (
-    <Screen>
-      <View style={styles.topBar}>
-        <Link href="/home" asChild>
-          <Pressable style={({ pressed }) => [styles.backButton, pressed && styles.lightPressed]}>
-            <Ionicons name="arrow-back" size={20} color={colors.text} />
-          </Pressable>
-        </Link>
+    <Screen
+      contentProps={{ ...swipeUpResponder.panHandlers, style: styles.screenContent }}
+      scroll={false}
+    >
+      <View style={styles.pageLayout}>
+        <View style={styles.pageColumn}>
+          <View style={styles.pageContent}>
+            <View style={styles.topBar}>
+              <Link href="/home" asChild>
+                <Pressable style={({ pressed }) => [styles.backButton, pressed && styles.lightPressed]}>
+                  <Ionicons name="arrow-back" size={20} color={colors.text} />
+                </Pressable>
+              </Link>
 
-        <View style={styles.titleGroup}>
-          <Text style={styles.title}>Namaste</Text>
-          <Text style={styles.subtitle}>People</Text>
-        </View>
-      </View>
-
-      <View style={styles.table}>
-        <View style={styles.tableHeader}>
-          <Text style={styles.headerCell}>Name</Text>
-          <Text style={styles.headerCellRight}>Status</Text>
-        </View>
-
-        {people.map((name) => (
-          <View key={name} style={styles.tableRow}>
-            <View style={styles.nameCell}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{name.charAt(0)}</Text>
+              <View style={styles.titleGroup}>
+                <Text style={styles.title}>Namaste</Text>
+                <Text style={styles.subtitle}>People</Text>
               </View>
-              <Text style={styles.nameText}>{name}</Text>
             </View>
-            <Text style={styles.statusText}>Active</Text>
+
+            <View style={styles.table}>
+              <View style={styles.tableHeader}>
+                <Text style={styles.headerCell}>Name</Text>
+                <Text style={styles.headerCellRight}>Status</Text>
+              </View>
+
+              {people.map((name) => (
+                <View key={name} style={styles.tableRow}>
+                  <View style={styles.nameCell}>
+                    <View style={styles.avatar}>
+                      <Text style={styles.avatarText}>{name.charAt(0)}</Text>
+                    </View>
+                    <Text style={styles.nameText}>{name}</Text>
+                  </View>
+                  <Text style={styles.statusText}>Active</Text>
+                </View>
+              ))}
+            </View>
           </View>
-        ))}
+          <Pressable
+            accessibilityLabel="Go back home"
+            onPress={() => router.replace('/home')}
+            style={styles.belowArea}
+          />
+        </View>
+        <Pressable
+          accessibilityLabel="Go back home"
+          onPress={() => router.replace('/home')}
+          style={styles.outsideArea}
+        />
       </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  screenContent: {
+    flex: 1,
+    maxWidth: '100%',
+    alignSelf: 'stretch',
+    padding: 0,
+    gap: 0,
+  },
+  pageLayout: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  pageColumn: {
+    flexBasis: '70%',
+    flexGrow: 0,
+    flexShrink: 0,
+  },
+  pageContent: {
+    gap: spacing.md,
+  },
+  belowArea: {
+    flex: 1,
+  },
+  outsideArea: {
+    flex: 1,
+  },
   topBar: {
     minHeight: 54,
     flexDirection: 'row',

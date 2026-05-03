@@ -32,7 +32,7 @@ export default function HomeScreen() {
   );
 
   return (
-    <Screen contentProps={swipeToPeopleResponder.panHandlers}>
+    <Screen scrollProps={swipeToPeopleResponder.panHandlers}>
       <View style={styles.homeContent}>
         <View style={styles.topBar}>
           <Link href="/people" asChild>
