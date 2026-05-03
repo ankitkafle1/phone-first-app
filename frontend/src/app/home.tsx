@@ -21,7 +21,11 @@ export default function HomeScreen() {
     <Screen>
       <View style={styles.topBar}>
         <View style={styles.brandGroup}>
-          <Text style={styles.appName}>Namaste</Text>
+          <Link href="/people" asChild>
+            <Pressable style={({ pressed }) => pressed && styles.brandPressed}>
+              <Text style={styles.appName}>Namaste</Text>
+            </Pressable>
+          </Link>
           <View style={styles.locationRow}>
             <Ionicons name="location-outline" size={15} color={colors.primary} />
             <Text style={styles.locationText}>
@@ -92,6 +96,9 @@ const styles = StyleSheet.create({
     fontSize: 30,
     fontWeight: '900',
     lineHeight: 34,
+  },
+  brandPressed: {
+    opacity: 0.72,
   },
   locationRow: {
     flexDirection: 'row',
