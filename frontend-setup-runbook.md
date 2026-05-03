@@ -168,6 +168,13 @@ cd /Users/ankit/Apps/frontend
 npx expo start --tunnel
 ```
 
+If the default tunnel fails with an ngrok client error, use the alternate tunnel subdomain mode:
+
+```sh
+cd /Users/ankit/Apps/frontend
+EXPO_TUNNEL_SUBDOMAIN=true npx expo start --tunnel --clear
+```
+
 Then share the QR code or Expo link shown in the terminal.
 
 If Expo asks for the tunnel helper, install it:

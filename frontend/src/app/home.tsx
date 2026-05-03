@@ -4,15 +4,48 @@ import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Screen } from '../components/Screen';
 import { colors, radius, spacing } from '../constants/theme';
+import { getCurrentUser } from '../services/authService';
+
+const homeLocation = {
+  city: 'Kathmandu',
+  countryCode: 'NP',
+};
+
+const avatarAccent = '#003577';
 
 export default function HomeScreen() {
+  const currentUser = getCurrentUser();
+  const avatarInitial = currentUser?.displayName.trim().charAt(0).toUpperCase();
+
   return (
     <Screen>
+      <View style={styles.topBar}>
+        <View style={styles.brandGroup}>
+          <Text style={styles.appName}>Namaste</Text>
+          <View style={styles.locationRow}>
+            <Ionicons name="location-outline" size={15} color={colors.primary} />
+            <Text style={styles.locationText}>
+              {homeLocation.city}, {homeLocation.countryCode}
+            </Text>
+          </View>
+        </View>
+
+        <Link href={currentUser ? '/profile' : '/register'} asChild>
+          <Pressable style={({ pressed }) => [styles.avatarButton, pressed && styles.avatarPressed]}>
+            {avatarInitial ? (
+              <Text style={styles.avatarInitial}>{avatarInitial}</Text>
+            ) : (
+              <Ionicons name="person-outline" size={22} color={avatarAccent} />
+            )}
+          </Pressable>
+        </Link>
+      </View>
+
       <View style={styles.header}>
-        <Text style={styles.eyebrow}>Phone-first app</Text>
-        <Text style={styles.title}>Start with the mobile experience.</Text>
+        <Text style={styles.eyebrow}>Community nearby</Text>
+        <Text style={styles.title}>Connect, notice, and share locally.</Text>
         <Text style={styles.subtitle}>
-          iOS and Android drive the product. Web remains available as a limited access path.
+          Find people, notices, posts, and basic buy/sell updates around your city.
         </Text>
       </View>
 
@@ -36,21 +69,62 @@ export default function HomeScreen() {
           </Text>
         </View>
       ) : null}
-
-      <Link href="/register" asChild>
-        <Pressable style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}>
-          <Text style={styles.buttonText}>Create Account</Text>
-          <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
-        </Pressable>
-      </Link>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  topBar: {
+    minHeight: 58,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    paddingTop: spacing.sm,
+  },
+  brandGroup: {
+    flex: 1,
+    gap: spacing.xs,
+    minWidth: 0,
+  },
+  appName: {
+    color: avatarAccent,
+    fontSize: 30,
+    fontWeight: '900',
+    lineHeight: 34,
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  locationText: {
+    color: colors.mutedText,
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+  avatarButton: {
+    width: 46,
+    height: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: avatarAccent,
+    borderRadius: 23,
+    backgroundColor: '#EEF6FF',
+  },
+  avatarPressed: {
+    backgroundColor: '#DCEEFF',
+  },
+  avatarInitial: {
+    color: avatarAccent,
+    fontSize: 18,
+    fontWeight: '900',
+  },
   header: {
     gap: spacing.sm,
-    paddingTop: spacing.lg,
+    paddingTop: spacing.md,
   },
   eyebrow: {
     color: colors.primary,
@@ -111,22 +185,5 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 14,
     lineHeight: 20,
-  },
-  button: {
-    minHeight: 52,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    borderRadius: radius.md,
-    backgroundColor: colors.primary,
-  },
-  buttonPressed: {
-    backgroundColor: colors.primaryPressed,
-  },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
   },
 });
