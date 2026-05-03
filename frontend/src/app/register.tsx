@@ -16,23 +16,31 @@ import { Screen } from '../components/Screen';
 import { colors, radius, spacing } from '../constants/theme';
 import {
   RegisterMethod,
+  RegistrationResult,
+  completeRegistrationProfile,
+  normalizeIdentifier,
   startRegistration,
+  validateIdentifier,
   verifyRegistration,
 } from '../services/authService';
 
-type Step = 'identifier' | 'code';
+type Step = 'identifier' | 'code' | 'profile';
 
 export default function RegisterScreen() {
   const [method, setMethod] = useState<RegisterMethod>('email');
   const [identifier, setIdentifier] = useState('');
   const [code, setCode] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [registrationResult, setRegistrationResult] = useState<RegistrationResult | null>(null);
   const [step, setStep] = useState<Step>('identifier');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const normalizedIdentifier = identifier.trim();
-  const canRequestCode = normalizedIdentifier.length > 3 && !isSubmitting;
-  const canVerifyCode = code.trim().length >= 6 && !isSubmitting;
+  const normalizedIdentifier = normalizeIdentifier(method, identifier);
+  const identifierError = normalizedIdentifier ? validateIdentifier(method, normalizedIdentifier) : '';
+  const canRequestCode = Boolean(normalizedIdentifier && !identifierError && !isSubmitting);
+  const canVerifyCode = code.trim().length === 6 && !isSubmitting;
+  const canCompleteProfile = displayName.trim().length >= 2 && !isSubmitting;
 
   const inputConfig = useMemo(() => {
     if (method === 'email') {
@@ -84,10 +92,34 @@ export default function RegisterScreen() {
     setError('');
 
     try {
-      await verifyRegistration({ method, identifier: normalizedIdentifier, code });
-      router.replace('/profile');
+      const result = await verifyRegistration({ method, identifier: normalizedIdentifier, code });
+      setRegistrationResult(result);
+      setStep('profile');
     } catch (verifyError) {
       setError(verifyError instanceof Error ? verifyError.message : 'Could not verify code.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleCompleteProfile() {
+    if (!canCompleteProfile || !registrationResult) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError('');
+
+    try {
+      await completeRegistrationProfile({
+        userId: registrationResult.userId,
+        displayName,
+        method: registrationResult.method,
+        verifiedIdentifier: registrationResult.verifiedIdentifier,
+      });
+      router.replace('/profile');
+    } catch (profileError) {
+      setError(profileError instanceof Error ? profileError.message : 'Could not create profile.');
     } finally {
       setIsSubmitting(false);
     }
@@ -97,6 +129,8 @@ export default function RegisterScreen() {
     setMethod(nextMethod);
     setIdentifier('');
     setCode('');
+    setDisplayName('');
+    setRegistrationResult(null);
     setError('');
     setStep('identifier');
   }
@@ -155,6 +189,7 @@ export default function RegisterScreen() {
               </View>
             </View>
 
+            {identifierError ? <Text style={styles.helpText}>{identifierError}</Text> : null}
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
             <Pressable
@@ -176,7 +211,9 @@ export default function RegisterScreen() {
               )}
             </Pressable>
           </View>
-        ) : (
+        ) : null}
+
+        {step === 'code' ? (
           <View style={styles.formSection}>
             <View style={styles.sentRow}>
               <Ionicons name="checkmark-circle" size={22} color={colors.success} />
@@ -197,6 +234,7 @@ export default function RegisterScreen() {
               />
             </View>
 
+            <Text style={styles.helpText}>Use code 123456 in this development build.</Text>
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
             <Pressable
@@ -230,7 +268,57 @@ export default function RegisterScreen() {
               <Text style={styles.secondaryButtonText}>Change {method}</Text>
             </Pressable>
           </View>
-        )}
+        ) : null}
+
+        {step === 'profile' ? (
+          <View style={styles.formSection}>
+            <View style={styles.sentRow}>
+              <Ionicons name="shield-checkmark" size={22} color={colors.success} />
+              <Text style={styles.sentText}>{normalizedIdentifier} verified</Text>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Display name</Text>
+              <View style={styles.inputShell}>
+                <Ionicons name="person-outline" size={20} color={colors.mutedText} />
+                <TextInput
+                  autoCapitalize="words"
+                  autoComplete="name"
+                  onChangeText={setDisplayName}
+                  placeholder="Your public name"
+                  placeholderTextColor={colors.mutedText}
+                  style={styles.input}
+                  textContentType="name"
+                  value={displayName}
+                />
+              </View>
+            </View>
+
+            <Text style={styles.helpText}>
+              This is the name people will see on posts, notices, and listings.
+            </Text>
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+            <Pressable
+              disabled={!canCompleteProfile}
+              onPress={handleCompleteProfile}
+              style={({ pressed }) => [
+                styles.primaryButton,
+                !canCompleteProfile && styles.disabledButton,
+                pressed && canCompleteProfile && styles.primaryButtonPressed,
+              ]}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <>
+                  <Text style={styles.primaryButtonText}>Finish Registration</Text>
+                  <Ionicons name="checkmark" size={18} color="#FFFFFF" />
+                </>
+              )}
+            </Pressable>
+          </View>
+        ) : null}
       </KeyboardAvoidingView>
     </Screen>
   );
@@ -382,6 +470,11 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: colors.danger,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  helpText: {
+    color: colors.mutedText,
     fontSize: 14,
     lineHeight: 20,
   },
