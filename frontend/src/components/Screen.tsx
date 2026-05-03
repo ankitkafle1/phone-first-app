@@ -1,15 +1,20 @@
 import { PropsWithChildren } from 'react';
-import { Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, View, ViewProps } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, spacing } from '../constants/theme';
 
 type ScreenProps = PropsWithChildren<{
   scroll?: boolean;
+  contentProps?: ViewProps;
 }>;
 
-export function Screen({ children, scroll = true }: ScreenProps) {
-  const content = <View style={styles.content}>{children}</View>;
+export function Screen({ children, contentProps, scroll = true }: ScreenProps) {
+  const content = (
+    <View {...contentProps} style={[styles.content, contentProps?.style]}>
+      {children}
+    </View>
+  );
 
   return (
     <SafeAreaView edges={['top', 'right', 'bottom', 'left']} style={styles.safeArea}>

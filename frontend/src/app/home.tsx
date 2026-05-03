@@ -21,9 +21,9 @@ export default function HomeScreen() {
     () =>
       PanResponder.create({
         onMoveShouldSetPanResponder: (_, gestureState) =>
-          gestureState.dx > 24 && Math.abs(gestureState.dy) < 24,
+          gestureState.dx > 12 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.4,
         onPanResponderRelease: (_, gestureState) => {
-          if (gestureState.dx > 72 && Math.abs(gestureState.dy) < 48) {
+          if (gestureState.dx > 48 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.4) {
             router.push('/people');
           }
         },
@@ -32,8 +32,8 @@ export default function HomeScreen() {
   );
 
   return (
-    <Screen>
-      <View style={styles.homeContent} {...swipeToPeopleResponder.panHandlers}>
+    <Screen contentProps={swipeToPeopleResponder.panHandlers}>
+      <View style={styles.homeContent}>
         <View style={styles.topBar}>
           <Link href="/people" asChild>
             <Pressable style={({ pressed }) => [styles.brandButton, pressed && styles.brandPressed]}>

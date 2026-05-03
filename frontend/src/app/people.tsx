@@ -1,94 +1,51 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { Link } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Screen } from '../components/Screen';
 import { colors, radius, spacing } from '../constants/theme';
 
 const people = ['Ankit1', 'Ankit2', 'Ankit3', 'Ankit4', 'Ankit5'];
 
 export default function PeopleScreen() {
-  function closePeople() {
-    router.replace('/home');
-  }
-
   return (
-    <SafeAreaView edges={['top', 'right', 'bottom', 'left']} style={styles.screen}>
-      <View style={styles.layout}>
-        <View style={styles.panel}>
-          <View style={styles.topBar}>
-            <Pressable
-              onPress={closePeople}
-              style={({ pressed }) => [styles.backButton, pressed && styles.lightPressed]}
-            >
-              <Ionicons name="arrow-back" size={20} color={colors.text} />
-            </Pressable>
+    <Screen>
+      <View style={styles.topBar}>
+        <Link href="/home" asChild>
+          <Pressable style={({ pressed }) => [styles.backButton, pressed && styles.lightPressed]}>
+            <Ionicons name="arrow-back" size={20} color={colors.text} />
+          </Pressable>
+        </Link>
 
-            <View style={styles.titleGroup}>
-              <Text style={styles.title}>Namaste</Text>
-              <Text style={styles.subtitle}>People</Text>
-            </View>
-          </View>
+        <View style={styles.titleGroup}>
+          <Text style={styles.title}>Namaste</Text>
+          <Text style={styles.subtitle}>People</Text>
+        </View>
+      </View>
 
-          <View style={styles.table}>
-            <View style={styles.tableHeader}>
-              <Text style={styles.headerCell}>Name</Text>
-              <Text style={styles.headerCellRight}>Status</Text>
-            </View>
-
-            {people.map((name) => (
-              <Pressable
-                key={name}
-                onPress={() => undefined}
-                style={({ pressed }) => [styles.tableRow, pressed && styles.rowPressed]}
-              >
-                <View style={styles.nameCell}>
-                  <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>{name.charAt(0)}</Text>
-                  </View>
-                  <Text style={styles.nameText}>{name}</Text>
-                </View>
-                <Text style={styles.statusText}>Active</Text>
-              </Pressable>
-            ))}
-          </View>
+      <View style={styles.table}>
+        <View style={styles.tableHeader}>
+          <Text style={styles.headerCell}>Name</Text>
+          <Text style={styles.headerCellRight}>Status</Text>
         </View>
 
-        <Pressable
-          accessibilityLabel="Close people list"
-          onPress={closePeople}
-          style={({ pressed }) => [styles.backdrop, pressed && styles.backdropPressed]}
-        />
+        {people.map((name) => (
+          <View key={name} style={styles.tableRow}>
+            <View style={styles.nameCell}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>{name.charAt(0)}</Text>
+              </View>
+              <Text style={styles.nameText}>{name}</Text>
+            </View>
+            <Text style={styles.statusText}>Active</Text>
+          </View>
+        ))}
       </View>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  layout: {
-    flex: 1,
-    flexDirection: 'row',
-  },
-  panel: {
-    width: '75%',
-    maxWidth: 420,
-    padding: spacing.md,
-    gap: spacing.md,
-    borderRightWidth: 1,
-    borderRightColor: colors.border,
-    backgroundColor: colors.background,
-  },
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.08)',
-  },
-  backdropPressed: {
-    backgroundColor: 'rgba(15, 23, 42, 0.14)',
-  },
   topBar: {
     minHeight: 54,
     flexDirection: 'row',
@@ -159,9 +116,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
-  },
-  rowPressed: {
-    backgroundColor: '#F8FAFC',
   },
   nameCell: {
     flex: 1,

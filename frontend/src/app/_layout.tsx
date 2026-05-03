@@ -8,10 +8,7 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen
-          name="people"
-          options={{ animation: 'slide_from_left', presentation: 'transparentModal' }}
-        />
+        <Stack.Screen name="people" options={{ animation: 'slide_from_left' }} />
       </Stack>
       <StatusBar backgroundColor={colors.background} style="dark" translucent={false} />
     </SafeAreaProvider>
