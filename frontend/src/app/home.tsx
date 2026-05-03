@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Link } from 'expo-router';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Link, router } from 'expo-router';
+import { useMemo } from 'react';
+import { PanResponder, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Screen } from '../components/Screen';
 import { colors, radius, spacing } from '../constants/theme';
@@ -16,68 +17,86 @@ const avatarAccent = '#003577';
 export default function HomeScreen() {
   const currentUser = getCurrentUser();
   const avatarInitial = currentUser?.displayName.trim().charAt(0).toUpperCase();
+  const swipeToPeopleResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gestureState) =>
+          gestureState.dx > 24 && Math.abs(gestureState.dy) < 24,
+        onPanResponderRelease: (_, gestureState) => {
+          if (gestureState.dx > 72 && Math.abs(gestureState.dy) < 48) {
+            router.push('/people');
+          }
+        },
+      }),
+    [],
+  );
 
   return (
     <Screen>
-      <View style={styles.topBar}>
-        <View style={styles.brandGroup}>
+      <View style={styles.homeContent} {...swipeToPeopleResponder.panHandlers}>
+        <View style={styles.topBar}>
           <Link href="/people" asChild>
-            <Pressable style={({ pressed }) => pressed && styles.brandPressed}>
-              <Text style={styles.appName}>Namaste</Text>
+            <Pressable style={({ pressed }) => [styles.brandButton, pressed && styles.brandPressed]}>
+              <View style={styles.brandGroup}>
+                <Text style={styles.appName}>Namaste</Text>
+                <View style={styles.locationRow}>
+                  <Ionicons name="location-outline" size={15} color={colors.primary} />
+                  <Text style={styles.locationText}>
+                    {homeLocation.city}, {homeLocation.countryCode}
+                  </Text>
+                </View>
+              </View>
             </Pressable>
           </Link>
-          <View style={styles.locationRow}>
-            <Ionicons name="location-outline" size={15} color={colors.primary} />
-            <Text style={styles.locationText}>
-              {homeLocation.city}, {homeLocation.countryCode}
+
+          <Link href={currentUser ? '/profile' : '/register'} asChild>
+            <Pressable style={({ pressed }) => [styles.avatarButton, pressed && styles.avatarPressed]}>
+              {avatarInitial ? (
+                <Text style={styles.avatarInitial}>{avatarInitial}</Text>
+              ) : (
+                <Ionicons name="person-outline" size={22} color={avatarAccent} />
+              )}
+            </Pressable>
+          </Link>
+        </View>
+
+        <View style={styles.header}>
+          <Text style={styles.eyebrow}>Community nearby</Text>
+          <Text style={styles.title}>Connect, notice, and share locally.</Text>
+          <Text style={styles.subtitle}>
+            Find people, notices, posts, and basic buy/sell updates around your city.
+          </Text>
+        </View>
+
+        <View style={styles.card}>
+          <View style={styles.cardIcon}>
+            <Ionicons name="phone-portrait" size={24} color={colors.primary} />
+          </View>
+          <View style={styles.cardBody}>
+            <Text style={styles.cardTitle}>Mobile functionality wins</Text>
+            <Text style={styles.cardText}>
+              Camera, push notifications, biometrics, and other native features should be designed
+              for phones first.
             </Text>
           </View>
         </View>
 
-        <Link href={currentUser ? '/profile' : '/register'} asChild>
-          <Pressable style={({ pressed }) => [styles.avatarButton, pressed && styles.avatarPressed]}>
-            {avatarInitial ? (
-              <Text style={styles.avatarInitial}>{avatarInitial}</Text>
-            ) : (
-              <Ionicons name="person-outline" size={22} color={avatarAccent} />
-            )}
-          </Pressable>
-        </Link>
+        {Platform.OS === 'web' ? (
+          <View style={styles.notice}>
+            <Text style={styles.noticeText}>
+              Web preview: this target is intentionally secondary and may become read-only.
+            </Text>
+          </View>
+        ) : null}
       </View>
-
-      <View style={styles.header}>
-        <Text style={styles.eyebrow}>Community nearby</Text>
-        <Text style={styles.title}>Connect, notice, and share locally.</Text>
-        <Text style={styles.subtitle}>
-          Find people, notices, posts, and basic buy/sell updates around your city.
-        </Text>
-      </View>
-
-      <View style={styles.card}>
-        <View style={styles.cardIcon}>
-          <Ionicons name="phone-portrait" size={24} color={colors.primary} />
-        </View>
-        <View style={styles.cardBody}>
-          <Text style={styles.cardTitle}>Mobile functionality wins</Text>
-          <Text style={styles.cardText}>
-            Camera, push notifications, biometrics, and other native features should be designed
-            for phones first.
-          </Text>
-        </View>
-      </View>
-
-      {Platform.OS === 'web' ? (
-        <View style={styles.notice}>
-          <Text style={styles.noticeText}>
-            Web preview: this target is intentionally secondary and may become read-only.
-          </Text>
-        </View>
-      ) : null}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  homeContent: {
+    gap: spacing.md,
+  },
   topBar: {
     minHeight: 58,
     flexDirection: 'row',
@@ -86,8 +105,16 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingTop: spacing.sm,
   },
-  brandGroup: {
+  brandButton: {
     flex: 1,
+    minHeight: 58,
+    justifyContent: 'center',
+    marginLeft: -spacing.sm,
+    paddingLeft: spacing.sm,
+    paddingRight: spacing.md,
+    borderRadius: radius.md,
+  },
+  brandGroup: {
     gap: spacing.xs,
     minWidth: 0,
   },
