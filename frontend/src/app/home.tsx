@@ -24,7 +24,7 @@ export default function HomeScreen() {
           gestureState.dx > 12 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.4,
         onPanResponderRelease: (_, gestureState) => {
           if (gestureState.dx > 48 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.4) {
-            router.push('/people');
+            router.replace('/people');
           }
         },
       }),
@@ -35,7 +35,7 @@ export default function HomeScreen() {
     <Screen scrollProps={swipeToPeopleResponder.panHandlers}>
       <View style={styles.homeContent}>
         <View style={styles.topBar}>
-          <Link href="/people" asChild>
+          <Link href="/people" replace asChild>
             <Pressable style={({ pressed }) => [styles.brandButton, pressed && styles.brandPressed]}>
               <View style={styles.brandGroup}>
                 <Text style={styles.appName}>Namaste</Text>
