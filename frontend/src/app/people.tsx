@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   topBar: {
-    minHeight: 54,
+    minHeight: 58,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
