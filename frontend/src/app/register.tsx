@@ -1,71 +1,72 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Link, router } from 'expo-router';
-import { useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Screen } from '../components/Screen';
 import { colors, radius, spacing } from '../constants/theme';
-import {
-  RegisterMethod,
-  RegistrationResult,
-  completeRegistrationProfile,
-  normalizeIdentifier,
-  startRegistration,
-  validateIdentifier,
-  verifyRegistration,
-} from '../services/authService';
+import { signInWithGoogleIdToken } from '../services/authService';
 
-type Step = 'identifier' | 'code' | 'profile';
+const googleConfig = {
+  webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+  iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+  scopes: ['profile', 'email'],
+};
+
+type GoogleSignInModule = typeof import('@react-native-google-signin/google-signin');
+
+declare const require: (moduleName: string) => GoogleSignInModule;
+
+function loadGoogleSignIn() {
+  try {
+    return require('@react-native-google-signin/google-signin');
+  } catch {
+    return null;
+  }
+}
 
 export default function RegisterScreen() {
-  const [method, setMethod] = useState<RegisterMethod>('email');
-  const [identifier, setIdentifier] = useState('');
-  const [code, setCode] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [registrationResult, setRegistrationResult] = useState<RegistrationResult | null>(null);
-  const [step, setStep] = useState<Step>('identifier');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGoogleSdkAvailable, setIsGoogleSdkAvailable] = useState(true);
 
-  const normalizedIdentifier = normalizeIdentifier(method, identifier);
-  const identifierError = normalizedIdentifier ? validateIdentifier(method, normalizedIdentifier) : '';
-  const canRequestCode = Boolean(normalizedIdentifier && !identifierError && !isSubmitting);
-  const canVerifyCode = code.trim().length === 6 && !isSubmitting;
-  const canCompleteProfile = displayName.trim().length >= 2 && !isSubmitting;
+  const isNative = Platform.OS === 'ios' || Platform.OS === 'android';
+  const isConfigured = Boolean(googleConfig.webClientId);
+  const canSignIn = isNative && isConfigured && isGoogleSdkAvailable && !isSubmitting;
 
-  const inputConfig = useMemo(() => {
-    if (method === 'email') {
-      return {
-        icon: 'mail-outline' as const,
-        label: 'Email',
-        placeholder: 'name@example.com',
-        keyboardType: 'email-address' as const,
-        textContentType: 'emailAddress' as const,
-        autoComplete: 'email' as const,
-      };
+  const unavailableMessage = useMemo(() => {
+    if (!isNative) {
+      return 'Google Sign-In is available in the iOS and Android app builds.';
     }
 
-    return {
-      icon: 'call-outline' as const,
-      label: 'Phone',
-      placeholder: '+1 555 123 4567',
-      keyboardType: 'phone-pad' as const,
-      textContentType: 'telephoneNumber' as const,
-      autoComplete: 'tel' as const,
-    };
-  }, [method]);
+    if (!isGoogleSdkAvailable) {
+      return 'Google Sign-In needs a custom development build. Expo Go does not include this native module.';
+    }
 
-  async function handleRequestCode() {
-    if (!canRequestCode) {
+    if (!isConfigured) {
+      return 'Set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID before starting the app.';
+    }
+
+    return '';
+  }, [isConfigured, isGoogleSdkAvailable, isNative]);
+
+  useEffect(() => {
+    if (!isNative) {
+      return;
+    }
+
+    const googleSignIn = loadGoogleSignIn();
+
+    if (!googleSignIn) {
+      setIsGoogleSdkAvailable(false);
+      return;
+    }
+
+    googleSignIn.GoogleSignin.configure(googleConfig);
+  }, []);
+
+  async function handleGoogleSignIn() {
+    if (!canSignIn) {
       return;
     }
 
@@ -73,74 +74,52 @@ export default function RegisterScreen() {
     setError('');
 
     try {
-      await startRegistration({ method, identifier: normalizedIdentifier });
-      setCode('');
-      setStep('code');
-    } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'Could not send code.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
+      const googleSignIn = loadGoogleSignIn();
 
-  async function handleVerifyCode() {
-    if (!canVerifyCode) {
-      return;
-    }
+      if (!googleSignIn) {
+        setIsGoogleSdkAvailable(false);
+        throw new Error(
+          'Google Sign-In needs a custom development build. Expo Go does not include this native module.',
+        );
+      }
 
-    setIsSubmitting(true);
-    setError('');
+      if (Platform.OS === 'android') {
+        await googleSignIn.GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      }
 
-    try {
-      const result = await verifyRegistration({ method, identifier: normalizedIdentifier, code });
-      setRegistrationResult(result);
-      setStep('profile');
-    } catch (verifyError) {
-      setError(verifyError instanceof Error ? verifyError.message : 'Could not verify code.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
+      const response = await googleSignIn.GoogleSignin.signIn();
 
-  async function handleCompleteProfile() {
-    if (!canCompleteProfile || !registrationResult) {
-      return;
-    }
+      if (googleSignIn.isCancelledResponse(response)) {
+        return;
+      }
 
-    setIsSubmitting(true);
-    setError('');
+      const { idToken, user } = response.data;
 
-    try {
-      await completeRegistrationProfile({
-        userId: registrationResult.userId,
-        displayName,
-        method: registrationResult.method,
-        verifiedIdentifier: registrationResult.verifiedIdentifier,
+      await signInWithGoogleIdToken(idToken ?? '', {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        photo: user.photo,
       });
+
       router.replace('/profile');
-    } catch (profileError) {
-      setError(profileError instanceof Error ? profileError.message : 'Could not create profile.');
+    } catch (signInError) {
+      const googleSignIn = loadGoogleSignIn();
+
+      if (googleSignIn?.isErrorWithCode(signInError)) {
+        setError(`Google Sign-In failed: ${signInError.code}`);
+        return;
+      }
+
+      setError(signInError instanceof Error ? signInError.message : 'Could not sign in with Google.');
     } finally {
       setIsSubmitting(false);
     }
-  }
-
-  function handleChangeMethod(nextMethod: RegisterMethod) {
-    setMethod(nextMethod);
-    setIdentifier('');
-    setCode('');
-    setDisplayName('');
-    setRegistrationResult(null);
-    setError('');
-    setStep('identifier');
   }
 
   return (
     <Screen>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.keyboardView}
-      >
+      <View style={styles.content}>
         <View style={styles.header}>
           <Link href="/home" asChild>
             <Pressable style={({ pressed }) => [styles.backButton, pressed && styles.lightPressed]}>
@@ -148,211 +127,53 @@ export default function RegisterScreen() {
             </Pressable>
           </Link>
 
-          <Text style={styles.title}>Create account</Text>
+          <Text style={styles.title}>Sign in</Text>
           <Text style={styles.subtitle}>
-            Register with email or phone. No password required.
+            Use Google to verify your identity. Namaste receives an app access token and refresh
+            token after Spring Boot verifies the Google ID token.
           </Text>
         </View>
 
-        <View style={styles.segmentedControl}>
-          <MethodButton
-            icon="mail-outline"
-            label="Email"
-            selected={method === 'email'}
-            onPress={() => handleChangeMethod('email')}
-          />
-          <MethodButton
-            icon="call-outline"
-            label="Phone"
-            selected={method === 'phone'}
-            onPress={() => handleChangeMethod('phone')}
-          />
+        <View style={styles.authPanel}>
+          <View style={styles.googleMark}>
+            <Text style={styles.googleMarkText}>G</Text>
+          </View>
+          <Text style={styles.panelTitle}>Continue with Google</Text>
+          <Text style={styles.panelText}>
+            Your email and profile come from Google. No email, phone, password, or OTP form is
+            needed in the app.
+          </Text>
+
+          {unavailableMessage ? <Text style={styles.helpText}>{unavailableMessage}</Text> : null}
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+          <Pressable
+            accessibilityRole="button"
+            disabled={!canSignIn}
+            onPress={handleGoogleSignIn}
+            style={({ pressed }) => [
+              styles.googleButton,
+              !canSignIn && styles.disabledButton,
+              pressed && canSignIn && styles.googleButtonPressed,
+            ]}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator color={colors.text} />
+            ) : (
+              <>
+                <Text style={styles.googleButtonMark}>G</Text>
+                <Text style={styles.googleButtonText}>Sign in with Google</Text>
+              </>
+            )}
+          </Pressable>
         </View>
-
-        {step === 'identifier' ? (
-          <View style={styles.formSection}>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>{inputConfig.label}</Text>
-              <View style={styles.inputShell}>
-                <Ionicons name={inputConfig.icon} size={20} color={colors.mutedText} />
-                <TextInput
-                  autoCapitalize="none"
-                  autoComplete={inputConfig.autoComplete}
-                  keyboardType={inputConfig.keyboardType}
-                  onChangeText={setIdentifier}
-                  placeholder={inputConfig.placeholder}
-                  placeholderTextColor={colors.mutedText}
-                  style={styles.input}
-                  textContentType={inputConfig.textContentType}
-                  value={identifier}
-                />
-              </View>
-            </View>
-
-            {identifierError ? <Text style={styles.helpText}>{identifierError}</Text> : null}
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-            <Pressable
-              disabled={!canRequestCode}
-              onPress={handleRequestCode}
-              style={({ pressed }) => [
-                styles.primaryButton,
-                !canRequestCode && styles.disabledButton,
-                pressed && canRequestCode && styles.primaryButtonPressed,
-              ]}
-            >
-              {isSubmitting ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <>
-                  <Text style={styles.primaryButtonText}>Send Code</Text>
-                  <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
-                </>
-              )}
-            </Pressable>
-          </View>
-        ) : null}
-
-        {step === 'code' ? (
-          <View style={styles.formSection}>
-            <View style={styles.sentRow}>
-              <Ionicons name="checkmark-circle" size={22} color={colors.success} />
-              <Text style={styles.sentText}>Code sent to {normalizedIdentifier}</Text>
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Verification code</Text>
-              <TextInput
-                keyboardType="number-pad"
-                maxLength={6}
-                onChangeText={setCode}
-                placeholder="000000"
-                placeholderTextColor={colors.mutedText}
-                style={styles.codeInput}
-                textContentType="oneTimeCode"
-                value={code}
-              />
-            </View>
-
-            <Text style={styles.helpText}>Use code 123456 in this development build.</Text>
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-            <Pressable
-              disabled={!canVerifyCode}
-              onPress={handleVerifyCode}
-              style={({ pressed }) => [
-                styles.primaryButton,
-                !canVerifyCode && styles.disabledButton,
-                pressed && canVerifyCode && styles.primaryButtonPressed,
-              ]}
-            >
-              {isSubmitting ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <>
-                  <Text style={styles.primaryButtonText}>Verify</Text>
-                  <Ionicons name="checkmark" size={18} color="#FFFFFF" />
-                </>
-              )}
-            </Pressable>
-
-            <Pressable
-              disabled={isSubmitting}
-              onPress={() => {
-                setStep('identifier');
-                setError('');
-              }}
-              style={({ pressed }) => [styles.secondaryButton, pressed && styles.lightPressed]}
-            >
-              <Ionicons name="create-outline" size={18} color={colors.primary} />
-              <Text style={styles.secondaryButtonText}>Change {method}</Text>
-            </Pressable>
-          </View>
-        ) : null}
-
-        {step === 'profile' ? (
-          <View style={styles.formSection}>
-            <View style={styles.sentRow}>
-              <Ionicons name="shield-checkmark" size={22} color={colors.success} />
-              <Text style={styles.sentText}>{normalizedIdentifier} verified</Text>
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Display name</Text>
-              <View style={styles.inputShell}>
-                <Ionicons name="person-outline" size={20} color={colors.mutedText} />
-                <TextInput
-                  autoCapitalize="words"
-                  autoComplete="name"
-                  onChangeText={setDisplayName}
-                  placeholder="Your public name"
-                  placeholderTextColor={colors.mutedText}
-                  style={styles.input}
-                  textContentType="name"
-                  value={displayName}
-                />
-              </View>
-            </View>
-
-            <Text style={styles.helpText}>
-              This is the name people will see on posts, notices, and listings.
-            </Text>
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-            <Pressable
-              disabled={!canCompleteProfile}
-              onPress={handleCompleteProfile}
-              style={({ pressed }) => [
-                styles.primaryButton,
-                !canCompleteProfile && styles.disabledButton,
-                pressed && canCompleteProfile && styles.primaryButtonPressed,
-              ]}
-            >
-              {isSubmitting ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <>
-                  <Text style={styles.primaryButtonText}>Finish Registration</Text>
-                  <Ionicons name="checkmark" size={18} color="#FFFFFF" />
-                </>
-              )}
-            </Pressable>
-          </View>
-        ) : null}
-      </KeyboardAvoidingView>
+      </View>
     </Screen>
   );
 }
 
-type MethodButtonProps = {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  selected: boolean;
-  onPress: () => void;
-};
-
-function MethodButton({ icon, label, selected, onPress }: MethodButtonProps) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected }}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.methodButton,
-        selected && styles.methodButtonSelected,
-        pressed && styles.lightPressed,
-      ]}
-    >
-      <Ionicons name={icon} size={19} color={selected ? colors.primary : colors.mutedText} />
-      <Text style={[styles.methodButtonText, selected && styles.methodButtonTextSelected]}>
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
-  keyboardView: {
+  content: {
     flex: 1,
     gap: spacing.lg,
   },
@@ -381,92 +202,66 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24,
   },
-  segmentedControl: {
-    minHeight: 54,
-    flexDirection: 'row',
-    gap: spacing.sm,
-    padding: spacing.xs,
+  authPanel: {
+    gap: spacing.md,
+    padding: spacing.lg,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.md,
-    backgroundColor: '#EEF2F7',
+    backgroundColor: colors.surface,
   },
-  methodButton: {
-    flex: 1,
-    minHeight: 44,
+  googleMark: {
+    width: 52,
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 26,
+    backgroundColor: '#FFFFFF',
+  },
+  googleMarkText: {
+    color: '#4285F4',
+    fontSize: 26,
+    fontWeight: '800',
+  },
+  panelTitle: {
+    color: colors.text,
+    fontSize: 22,
+    fontWeight: '800',
+    lineHeight: 28,
+  },
+  panelText: {
+    color: colors.mutedText,
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  googleButton: {
+    minHeight: 54,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.sm,
-    borderRadius: radius.sm,
-  },
-  methodButtonSelected: {
-    backgroundColor: colors.surface,
-  },
-  methodButtonText: {
-    color: colors.mutedText,
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  methodButtonTextSelected: {
-    color: colors.primary,
-  },
-  formSection: {
-    gap: spacing.md,
-  },
-  inputGroup: {
-    gap: spacing.sm,
-  },
-  label: {
-    color: colors.text,
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  inputShell: {
-    minHeight: 54,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.md,
-    backgroundColor: colors.surface,
+    backgroundColor: '#FFFFFF',
   },
-  input: {
-    flex: 1,
+  googleButtonPressed: {
+    backgroundColor: '#F8FAFC',
+  },
+  googleButtonMark: {
+    color: '#4285F4',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  googleButtonText: {
     color: colors.text,
     fontSize: 16,
-    minWidth: 0,
+    fontWeight: '800',
   },
-  codeInput: {
-    minHeight: 58,
-    color: colors.text,
-    fontSize: 24,
-    fontWeight: '700',
-    letterSpacing: 0,
-    textAlign: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    backgroundColor: colors.surface,
-  },
-  sentRow: {
-    minHeight: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
-    borderRadius: radius.md,
-    backgroundColor: '#F0FDF4',
-  },
-  sentText: {
-    flex: 1,
-    color: colors.text,
-    fontSize: 14,
-    lineHeight: 20,
+  disabledButton: {
+    opacity: 0.48,
   },
   errorText: {
     color: colors.danger,
@@ -477,42 +272,6 @@ const styles = StyleSheet.create({
     color: colors.mutedText,
     fontSize: 14,
     lineHeight: 20,
-  },
-  primaryButton: {
-    minHeight: 54,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    borderRadius: radius.md,
-    backgroundColor: colors.primary,
-  },
-  primaryButtonPressed: {
-    backgroundColor: colors.primaryPressed,
-  },
-  primaryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  secondaryButton: {
-    minHeight: 50,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    backgroundColor: colors.surface,
-  },
-  secondaryButtonText: {
-    color: colors.primary,
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  disabledButton: {
-    opacity: 0.48,
   },
   lightPressed: {
     opacity: 0.72,

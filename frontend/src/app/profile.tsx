@@ -15,7 +15,7 @@ export default function ProfileScreen() {
         <Text style={styles.title}>Profile</Text>
         <Text style={styles.subtitle}>
           {currentUser
-            ? 'Your account is registered for this development session.'
+            ? 'You are signed in for this development session.'
             : 'Placeholder screen for account, preferences, and future authentication flows.'}
         </Text>
       </View>
@@ -26,10 +26,8 @@ export default function ProfileScreen() {
           <Text style={styles.rowTitle}>{currentUser?.displayName ?? 'Account foundation'}</Text>
           <Text style={styles.rowDescription}>
             {currentUser?.email
-              ? `Verified email: ${currentUser.email}`
-              : currentUser?.phone
-                ? `Verified phone: ${currentUser.phone}`
-                : 'This is where sign-in, user details, and notification preferences can start.'}
+              ? `Google account: ${currentUser.email}`
+              : 'This is where sign-in, user details, and notification preferences can start.'}
           </Text>
         </View>
       </View>

@@ -1,126 +1,111 @@
-export type RegisterMethod = 'email' | 'phone';
-
-export type StartRegistrationInput = {
-  method: RegisterMethod;
-  identifier: string;
-};
-
-export type VerifyRegistrationInput = StartRegistrationInput & {
-  code: string;
-};
-
-export type CompleteRegistrationProfileInput = {
-  userId: string;
-  displayName: string;
-  method: RegisterMethod;
-  verifiedIdentifier: string;
-};
-
-export type RegistrationResult = {
-  userId: string;
-  displayNameRequired: boolean;
-  verifiedIdentifier: string;
-  method: RegisterMethod;
+export type AuthTokens = {
+  accessToken: string;
+  refreshToken: string;
 };
 
 export type RegisteredUser = {
   userId: string;
   displayName: string;
-  email?: string;
-  phone?: string;
-  sessionId: string;
+  email: string;
+  photoUrl?: string;
+  tokens: AuthTokens;
 };
 
-const mockDelay = 450;
-const validCode = '123456';
+type GoogleTokenExchangeResponse = {
+  accessToken: string;
+  refreshToken: string;
+  user?: {
+    id?: string;
+    userId?: string;
+    displayName?: string;
+    name?: string;
+    email?: string;
+    photoUrl?: string;
+    picture?: string;
+  };
+};
+
+type GoogleSignInProfile = {
+  id?: string;
+  name?: string | null;
+  email?: string;
+  photo?: string | null;
+};
+
+const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
+const googleExchangePath = process.env.EXPO_PUBLIC_GOOGLE_AUTH_PATH ?? '/api/auth/google';
+
 let currentUser: RegisteredUser | null = null;
 
-function wait(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function joinUrl(baseUrl: string, path: string) {
+  return `${baseUrl.replace(/\/$/, '')}/${path.replace(/^\//, '')}`;
 }
 
-export function normalizeIdentifier(method: RegisterMethod, identifier: string) {
-  const trimmed = identifier.trim();
+function resolveUser(
+  response: GoogleTokenExchangeResponse,
+  googleProfile?: GoogleSignInProfile,
+): RegisteredUser {
+  const user = response.user;
+  const userId = user?.userId ?? user?.id ?? googleProfile?.id;
+  const displayName = user?.displayName ?? user?.name ?? googleProfile?.name;
+  const email = user?.email ?? googleProfile?.email;
+  const photoUrl = user?.photoUrl ?? user?.picture ?? googleProfile?.photo ?? undefined;
 
-  if (method === 'email') {
-    return trimmed.toLowerCase();
-  }
-
-  return trimmed.replace(/[^\d+]/g, '');
-}
-
-export function validateIdentifier(method: RegisterMethod, identifier: string) {
-  const normalized = normalizeIdentifier(method, identifier);
-
-  if (method === 'email') {
-    const hasEmailShape = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized);
-    return hasEmailShape ? '' : 'Enter a valid email address.';
-  }
-
-  const digitCount = normalized.replace(/\D/g, '').length;
-
-  if (!normalized.startsWith('+')) {
-    return 'Enter phone number with country code, like +1 555 123 4567.';
-  }
-
-  return digitCount >= 10 ? '' : 'Enter a valid phone number.';
-}
-
-export async function startRegistration(input: StartRegistrationInput) {
-  const normalizedIdentifier = normalizeIdentifier(input.method, input.identifier);
-  const validationError = validateIdentifier(input.method, normalizedIdentifier);
-
-  if (validationError) {
-    throw new Error(validationError);
-  }
-
-  await wait(mockDelay);
-
-  return {
-    deliveryTarget: normalizedIdentifier,
-    method: input.method,
-  };
-}
-
-export async function verifyRegistration(input: VerifyRegistrationInput): Promise<RegistrationResult> {
-  const normalizedIdentifier = normalizeIdentifier(input.method, input.identifier);
-
-  await wait(mockDelay);
-
-  if (input.code.trim() !== validCode) {
-    throw new Error('Use verification code 123456 for this development build.');
+  if (!userId || !displayName || !email) {
+    throw new Error('Spring Boot did not return enough user details.');
   }
 
   return {
-    userId: 'new-user',
-    displayNameRequired: true,
-    verifiedIdentifier: normalizedIdentifier,
-    method: input.method,
-  };
-}
-
-export async function completeRegistrationProfile(
-  input: CompleteRegistrationProfileInput,
-): Promise<RegisteredUser> {
-  await wait(mockDelay);
-
-  const displayName = input.displayName.trim();
-
-  if (displayName.length < 2) {
-    throw new Error('Display name must be at least 2 characters.');
-  }
-
-  currentUser = {
-    userId: input.userId,
+    userId,
     displayName,
-    email: input.method === 'email' ? input.verifiedIdentifier : undefined,
-    phone: input.method === 'phone' ? input.verifiedIdentifier : undefined,
-    sessionId: 'mock-session',
+    email,
+    photoUrl,
+    tokens: {
+      accessToken: response.accessToken,
+      refreshToken: response.refreshToken,
+    },
   };
+}
 
+export async function signInWithGoogleIdToken(
+  idToken: string,
+  googleProfile?: GoogleSignInProfile,
+): Promise<RegisteredUser> {
+  if (!idToken) {
+    throw new Error('Google did not return an ID token.');
+  }
+
+  const response = await fetch(joinUrl(apiBaseUrl, googleExchangePath), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ idToken }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || 'Spring Boot could not verify Google sign-in.');
+  }
+
+  const data = (await response.json()) as GoogleTokenExchangeResponse;
+
+  if (!data.accessToken || !data.refreshToken) {
+    throw new Error('Spring Boot did not return app tokens.');
+  }
+
+  currentUser = resolveUser(data, googleProfile);
   return currentUser;
 }
 
 export function getCurrentUser() {
   return currentUser;
+}
+
+export function getAccessToken() {
+  return currentUser?.tokens.accessToken ?? null;
+}
+
+export function clearCurrentUser() {
+  currentUser = null;
 }
