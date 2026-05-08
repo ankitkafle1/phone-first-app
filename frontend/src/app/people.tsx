@@ -6,7 +6,18 @@ import { PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Screen } from '../components/Screen';
 import { colors, radius, spacing } from '../constants/theme';
 
-const people = ['Ankit1', 'Ankit2', 'Ankit3', 'Ankit4', 'Ankit5'];
+const menuItems = [
+  { icon: 'storefront-outline' as const, label: 'Nepali Business', href: '/nepali-business' as const },
+  { icon: 'newspaper-outline' as const, label: 'Suchana Pati', href: '/suchana-pati' as const },
+  { icon: 'book-outline' as const, label: 'कथा / कविता', href: '/katha-kabita' as const },
+  { icon: 'home-outline' as const, label: 'Rooms', href: '/rooms' as const },
+  { icon: 'pricetag-outline' as const, label: 'Buy & Sell', href: '/buy-sell' as const },
+  { icon: 'person-outline' as const, label: 'Profile' },
+  { icon: 'notifications-outline' as const, label: 'Notifications' },
+  { icon: 'settings-outline' as const, label: 'Settings' },
+  { icon: 'help-circle-outline' as const, label: 'Help' },
+  { icon: 'information-circle-outline' as const, label: 'About' },
+];
 
 export default function PeopleScreen() {
   const swipeUpResponder = useMemo(
@@ -37,29 +48,26 @@ export default function PeopleScreen() {
                   <Ionicons name="arrow-back" size={20} color={colors.text} />
                 </Pressable>
               </Link>
-
-              <View style={styles.titleGroup}>
-                <Text style={styles.title}>Namaste</Text>
-                <Text style={styles.subtitle}>People</Text>
-              </View>
             </View>
 
-            <View style={styles.table}>
-              <View style={styles.tableHeader}>
-                <Text style={styles.headerCell}>Name</Text>
-                <Text style={styles.headerCellRight}>Status</Text>
-              </View>
-
-              {people.map((name) => (
-                <View key={name} style={styles.tableRow}>
-                  <View style={styles.nameCell}>
-                    <View style={styles.avatar}>
-                      <Text style={styles.avatarText}>{name.charAt(0)}</Text>
-                    </View>
-                    <Text style={styles.nameText}>{name}</Text>
+            <View style={styles.menuList}>
+              {menuItems.map((item) => (
+                <Pressable
+                  accessibilityRole="button"
+                  key={item.label}
+                  onPress={() => {
+                    if (item.href) {
+                      router.push(item.href);
+                    }
+                  }}
+                  style={({ pressed }) => [styles.menuRow, pressed && styles.lightPressed]}
+                >
+                  <View style={styles.menuIcon}>
+                    <Ionicons name={item.icon} size={20} color="#003577" />
                   </View>
-                  <Text style={styles.statusText}>Active</Text>
-                </View>
+                  <Text style={styles.menuText}>{item.label}</Text>
+                  <Ionicons name="chevron-forward" size={18} color={colors.mutedText} />
+                </Pressable>
               ))}
             </View>
           </View>
@@ -98,6 +106,7 @@ const styles = StyleSheet.create({
   },
   pageContent: {
     gap: spacing.md,
+    padding: spacing.md,
   },
   belowArea: {
     flex: 1,
@@ -122,91 +131,34 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     backgroundColor: colors.surface,
   },
-  titleGroup: {
-    flex: 1,
-    minWidth: 0,
+  menuList: {
+    gap: spacing.sm,
   },
-  title: {
-    color: '#003577',
-    fontSize: 28,
-    fontWeight: '900',
-    lineHeight: 32,
-  },
-  subtitle: {
-    color: colors.mutedText,
-    fontSize: 14,
-    fontWeight: '700',
-    lineHeight: 20,
-  },
-  table: {
-    overflow: 'hidden',
+  menuRow: {
+    minHeight: 58,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.md,
     backgroundColor: colors.surface,
   },
-  tableHeader: {
-    minHeight: 44,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    backgroundColor: '#EFF6FF',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  headerCell: {
-    color: colors.text,
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  headerCellRight: {
-    color: colors.text,
-    fontSize: 14,
-    fontWeight: '800',
-    textAlign: 'right',
-  },
-  tableRow: {
-    minHeight: 58,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.md,
-    paddingHorizontal: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  nameCell: {
-    flex: 1,
-    minWidth: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  avatar: {
-    width: 34,
-    height: 34,
+  menuIcon: {
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#003577',
-    borderRadius: 17,
-    backgroundColor: '#EEF6FF',
+    borderColor: '#BFDBFE',
+    borderRadius: radius.sm,
+    backgroundColor: '#EFF6FF',
   },
-  avatarText: {
-    color: '#003577',
-    fontSize: 15,
-    fontWeight: '900',
-  },
-  nameText: {
+  menuText: {
     flex: 1,
     color: colors.text,
     fontSize: 16,
-    fontWeight: '700',
-  },
-  statusText: {
-    color: colors.success,
-    fontSize: 14,
     fontWeight: '800',
   },
   lightPressed: {
