@@ -6,7 +6,53 @@ import { PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Screen } from '../components/Screen';
 import { colors, radius, spacing } from '../constants/theme';
 
-const people = ['Ankit1', 'Ankit2', 'Ankit3', 'Ankit4', 'Ankit5'];
+const menuItems = [
+  {
+    accent: '#EA580C',
+    background: '#FFF7ED',
+    border: '#FDBA74',
+    description: 'Local services, shops, and trusted listings',
+    icon: 'storefront-outline' as const,
+    label: 'Nepali Business',
+    href: '/nepali-business' as const,
+  },
+  {
+    accent: '#0EA5E9',
+    background: '#F0F9FF',
+    border: '#7DD3FC',
+    description: 'Announcements, events, and community notices',
+    icon: 'newspaper-outline' as const,
+    label: 'Suchana Pati',
+    href: '/suchana-pati' as const,
+  },
+  {
+    accent: '#7C3AED',
+    background: '#F5F3FF',
+    border: '#C4B5FD',
+    description: 'Stories, poems, and gazal from the community',
+    icon: 'book-outline' as const,
+    label: 'कथा / कविता',
+    href: '/katha-kabita' as const,
+  },
+  {
+    accent: '#16A34A',
+    background: '#F0FDF4',
+    border: '#86EFAC',
+    description: 'Rooms, apartments, and shared spaces',
+    icon: 'home-outline' as const,
+    label: 'Rooms',
+    href: '/rooms' as const,
+  },
+  {
+    accent: '#A16207',
+    background: '#FFFBEB',
+    border: '#FDE68A',
+    description: 'Buy, sell, and discover nearby items',
+    icon: 'pricetag-outline' as const,
+    label: 'Buy & Sell',
+    href: '/buy-sell' as const,
+  },
+];
 
 export default function PeopleScreen() {
   const swipeUpResponder = useMemo(
@@ -37,29 +83,39 @@ export default function PeopleScreen() {
                   <Ionicons name="arrow-back" size={20} color={colors.text} />
                 </Pressable>
               </Link>
-
-              <View style={styles.titleGroup}>
-                <Text style={styles.title}>Namaste</Text>
-                <Text style={styles.subtitle}>People</Text>
-              </View>
             </View>
 
-            <View style={styles.table}>
-              <View style={styles.tableHeader}>
-                <Text style={styles.headerCell}>Name</Text>
-                <Text style={styles.headerCellRight}>Status</Text>
-              </View>
+            <View style={styles.menuHeader}>
+              <Text style={styles.menuHeaderTitle}>Menu</Text>
+              <Text style={styles.menuHeaderText}>Explore community tools and local updates.</Text>
+            </View>
 
-              {people.map((name) => (
-                <View key={name} style={styles.tableRow}>
-                  <View style={styles.nameCell}>
-                    <View style={styles.avatar}>
-                      <Text style={styles.avatarText}>{name.charAt(0)}</Text>
-                    </View>
-                    <Text style={styles.nameText}>{name}</Text>
+            <View style={styles.menuList}>
+              {menuItems.map((item) => (
+                <Pressable
+                  accessibilityRole="button"
+                  key={item.label}
+                  onPress={() => {
+                    if (item.href) {
+                      router.push(item.href);
+                    }
+                  }}
+                  style={({ pressed }) => [
+                    styles.menuRow,
+                    { backgroundColor: item.background, borderColor: item.border },
+                    pressed && styles.lightPressed,
+                  ]}
+                >
+                  <View style={[styles.menuAccent, { backgroundColor: item.accent }]} />
+                  <View style={[styles.menuIcon, { borderColor: item.border }]}>
+                    <Ionicons name={item.icon} size={21} color={item.accent} />
                   </View>
-                  <Text style={styles.statusText}>Active</Text>
-                </View>
+                  <View style={styles.menuTextGroup}>
+                    <Text style={styles.menuText}>{item.label}</Text>
+                    <Text style={styles.menuDescription}>{item.description}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={19} color={item.accent} />
+                </Pressable>
               ))}
             </View>
           </View>
@@ -97,7 +153,8 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   pageContent: {
-    gap: spacing.md,
+    gap: spacing.sm,
+    padding: spacing.md,
   },
   belowArea: {
     flex: 1,
@@ -106,11 +163,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   topBar: {
-    minHeight: 58,
+    minHeight: 42,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    paddingTop: spacing.sm,
   },
   backButton: {
     width: 42,
@@ -122,92 +178,68 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     backgroundColor: colors.surface,
   },
-  titleGroup: {
-    flex: 1,
-    minWidth: 0,
+  menuList: {
+    gap: spacing.sm,
   },
-  title: {
-    color: '#003577',
+  menuHeader: {
+    gap: spacing.xs,
+    paddingHorizontal: spacing.xs,
+    paddingBottom: spacing.xs,
+  },
+  menuHeaderTitle: {
+    color: colors.text,
     fontSize: 28,
     fontWeight: '900',
-    lineHeight: 32,
+    lineHeight: 34,
   },
-  subtitle: {
+  menuHeaderText: {
     color: colors.mutedText,
     fontSize: 14,
     fontWeight: '700',
     lineHeight: 20,
   },
-  table: {
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    backgroundColor: colors.surface,
-  },
-  tableHeader: {
-    minHeight: 44,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    backgroundColor: '#EFF6FF',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  headerCell: {
-    color: colors.text,
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  headerCellRight: {
-    color: colors.text,
-    fontSize: 14,
-    fontWeight: '800',
-    textAlign: 'right',
-  },
-  tableRow: {
-    minHeight: 58,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.md,
-    paddingHorizontal: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  nameCell: {
-    flex: 1,
-    minWidth: 0,
+  menuRow: {
+    minHeight: 76,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
+    overflow: 'hidden',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderWidth: 1,
+    borderRadius: radius.md,
   },
-  avatar: {
-    width: 34,
-    height: 34,
+  menuAccent: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 5,
+  },
+  menuIcon: {
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#003577',
-    borderRadius: 17,
-    backgroundColor: '#EEF6FF',
+    borderRadius: radius.md,
+    backgroundColor: '#FFFFFF',
   },
-  avatarText: {
-    color: '#003577',
-    fontSize: 15,
-    fontWeight: '900',
-  },
-  nameText: {
+  menuTextGroup: {
     flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  menuText: {
     color: colors.text,
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '900',
   },
-  statusText: {
-    color: colors.success,
-    fontSize: 14,
-    fontWeight: '800',
+  menuDescription: {
+    color: colors.mutedText,
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 17,
   },
   lightPressed: {
     opacity: 0.72,
