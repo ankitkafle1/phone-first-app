@@ -1,3 +1,7 @@
 name = "phone-first-app"
 compatibility_date = "2026-05-10"
 pages_build_output_dir = "dist"
+
+[assets]
+directory = "./dist"
+not_found_handling = "single-page-application"
