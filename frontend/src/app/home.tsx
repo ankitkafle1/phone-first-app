@@ -209,14 +209,6 @@ export default function HomeScreen() {
         <HoroscopeCard />
 
         <GoldPriceCard homeLocation={homeLocation} />
-
-        {Platform.OS === 'web' ? (
-          <View style={styles.notice}>
-            <Text style={styles.noticeText}>
-              Web preview: this target is intentionally secondary and may become read-only.
-            </Text>
-          </View>
-        ) : null}
       </View>
     </Screen>
   );
