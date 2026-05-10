@@ -5,57 +5,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Screen } from '../components/Screen';
 import { colors, radius, spacing } from '../constants/theme';
-
-type NoticeType = 'Announcement' | 'Event' | 'Community' | 'Alert';
-
-type NoticePost = {
-  id: string;
-  title: string;
-  noticeType: NoticeType;
-  location: string;
-  dateLabel: string;
-  organizer: string;
-  description: string;
-};
-
-const noticePosts: NoticePost[] = [
-  {
-    id: 'dashain-community-meetup',
-    title: 'Dashain community meetup',
-    noticeType: 'Event',
-    location: 'Kathmandu, NP',
-    dateLabel: '२०८३ असोज १०',
-    organizer: 'Namaste Community Group',
-    description: 'Local families are invited for tika, food, music, and community introductions.',
-  },
-  {
-    id: 'passport-camp-notice',
-    title: 'Passport renewal help desk',
-    noticeType: 'Announcement',
-    location: 'Queens, New York, US',
-    dateLabel: 'May 12, 2026',
-    organizer: 'Nepali Help Center',
-    description: 'Volunteers will help review passport renewal documents and appointment steps.',
-  },
-  {
-    id: 'blood-donation-drive',
-    title: 'Blood donation drive',
-    noticeType: 'Community',
-    location: 'Lalitpur, NP',
-    dateLabel: '२०८३ जेठ २',
-    organizer: 'Youth Volunteer Circle',
-    description: 'Open blood donation event with basic health screening and donor refreshments.',
-  },
-  {
-    id: 'weather-road-alert',
-    title: 'Road closure near Kalanki',
-    noticeType: 'Alert',
-    location: 'Kathmandu, NP',
-    dateLabel: 'Today',
-    organizer: 'Local Notice Desk',
-    description: 'Expect traffic delays near Kalanki due to road maintenance this afternoon.',
-  },
-];
+import { noticePosts, type NoticeType } from '../features/home/homeData';
 
 export default function SuchanaPatiScreen() {
   const [searchText, setSearchText] = useState('');

@@ -48,6 +48,10 @@ export type PreciousMetalRate = {
   symbol: string;
   unit: string;
   price: string;
+  history: {
+    label: string;
+    value: number;
+  }[];
 };
 
 export type GoldVendor = {
@@ -108,6 +112,30 @@ export type HomeBuySellPreview = {
   homeOrder: number;
 };
 
+export type NoticeType = 'Announcement' | 'Event' | 'Community' | 'Alert';
+
+export type NoticePost = {
+  id: string;
+  title: string;
+  noticeType: NoticeType;
+  location: string;
+  dateLabel: string;
+  organizer: string;
+  description: string;
+};
+
+export type NepaliNewsItem = {
+  id: string;
+  title: string;
+  source: string;
+  category: string;
+  publishedLabel: string;
+  summary: string;
+  body: string;
+  imageUrl: string;
+  url: string;
+};
+
 export type HomeFeedItem =
   | { id: string; kind: 'suchana'; item: SuchanaPatiPreview; homeOrder: number }
   | { id: string; kind: 'room'; item: HomeRoomPreview; homeOrder: number }
@@ -165,6 +193,12 @@ export const defaultHomePreferences = {
   },
   timeCityIds: ['kathmandu-np', 'new-york-us', 'san-francisco-us'],
   exchangeRateCodes: ['USD'],
+  newsIds: [
+    'onlinekhabar-manoj-sharma',
+    'onlinekhabar-hark-sudan',
+    'onlinekhabar-himalaya-sports',
+    'onlinekhabar-electricity-europe',
+  ],
   preciousMetalCodes: ['GOLD', 'SILVER'],
   horoscopeId: 'mesh',
   homeFeed: {
@@ -200,10 +234,42 @@ export const exchangeRates: ExchangeRate[] = [
 ];
 
 export const preciousMetalRates: PreciousMetalRate[] = [
-  { code: 'GOLD', name: 'Gold', symbol: 'Au', unit: '1 tola', price: '235,400' },
-  { code: 'SILVER', name: 'Silver', symbol: 'Ag', unit: '1 tola', price: '3,050' },
-  { code: 'PLATINUM', name: 'Platinum', symbol: 'Pt', unit: '1 tola', price: '142,800' },
-  { code: 'PALLADIUM', name: 'Palladium', symbol: 'Pd', unit: '1 tola', price: '129,600' },
+  { code: 'GOLD', name: 'Gold', symbol: 'Au', unit: '1 tola', price: '235,400', history: [
+    { label: 'D1', value: 231200 },
+    { label: 'D2', value: 232000 },
+    { label: 'D3', value: 231800 },
+    { label: 'D4', value: 233100 },
+    { label: 'D5', value: 234000 },
+    { label: 'D6', value: 234600 },
+    { label: 'D7', value: 235400 },
+  ] },
+  { code: 'SILVER', name: 'Silver', symbol: 'Ag', unit: '1 tola', price: '3,050', history: [
+    { label: 'D1', value: 2960 },
+    { label: 'D2', value: 2980 },
+    { label: 'D3', value: 3010 },
+    { label: 'D4', value: 2995 },
+    { label: 'D5', value: 3020 },
+    { label: 'D6', value: 3040 },
+    { label: 'D7', value: 3050 },
+  ] },
+  { code: 'PLATINUM', name: 'Platinum', symbol: 'Pt', unit: '1 tola', price: '142,800', history: [
+    { label: 'D1', value: 140200 },
+    { label: 'D2', value: 140900 },
+    { label: 'D3', value: 141300 },
+    { label: 'D4', value: 141100 },
+    { label: 'D5', value: 141900 },
+    { label: 'D6', value: 142400 },
+    { label: 'D7', value: 142800 },
+  ] },
+  { code: 'PALLADIUM', name: 'Palladium', symbol: 'Pd', unit: '1 tola', price: '129,600', history: [
+    { label: 'D1', value: 127800 },
+    { label: 'D2', value: 128200 },
+    { label: 'D3', value: 127900 },
+    { label: 'D4', value: 128700 },
+    { label: 'D5', value: 129100 },
+    { label: 'D6', value: 129300 },
+    { label: 'D7', value: 129600 },
+  ] },
 ];
 
 export const goldVendorsByLocation: Record<string, GoldVendor[]> = {
@@ -211,8 +277,103 @@ export const goldVendorsByLocation: Record<string, GoldVendor[]> = {
     { id: 'new-road-gold-center', name: 'New Road Gold Center', phone: '+9779800000001' },
     { id: 'bishal-bazaar-jewellers', name: 'Bishal Bazaar Jewellers', phone: '+9779800000002' },
     { id: 'durbar-marg-gold-house', name: 'Durbar Marg Gold House', phone: '+9779800000003' },
+    { id: 'asans-gold-corner', name: 'Asan Gold Corner', phone: '+9779800000004' },
+    { id: 'patan-silver-gold-house', name: 'Patan Silver & Gold House', phone: '+9779800000005' },
+    { id: 'new-baneshwor-jewellery', name: 'New Baneshwor Jewellery', phone: '+9779800000006' },
+    { id: 'maharajgunj-gold-traders', name: 'Maharajgunj Gold Traders', phone: '+9779800000007' },
+    { id: 'bhaktapur-gold-gallery', name: 'Bhaktapur Gold Gallery', phone: '+9779800000008' },
   ],
 };
+
+export const noticePosts: NoticePost[] = [
+  {
+    id: 'dashain-community-meetup',
+    title: 'Dashain community meetup',
+    noticeType: 'Event',
+    location: 'Kathmandu, NP',
+    dateLabel: '२०८३ असोज १०',
+    organizer: 'Namaste Community Group',
+    description: 'Local families are invited for tika, food, music, and community introductions.',
+  },
+  {
+    id: 'passport-camp-notice',
+    title: 'Passport renewal help desk',
+    noticeType: 'Announcement',
+    location: 'Queens, New York, US',
+    dateLabel: 'May 12, 2026',
+    organizer: 'Nepali Help Center',
+    description: 'Volunteers will help review passport renewal documents and appointment steps.',
+  },
+  {
+    id: 'blood-donation-drive',
+    title: 'Blood donation drive',
+    noticeType: 'Community',
+    location: 'Lalitpur, NP',
+    dateLabel: '२०८३ जेठ २',
+    organizer: 'Youth Volunteer Circle',
+    description: 'Open blood donation event with basic health screening and donor refreshments.',
+  },
+  {
+    id: 'weather-road-alert',
+    title: 'Road closure near Kalanki',
+    noticeType: 'Alert',
+    location: 'Kathmandu, NP',
+    dateLabel: 'Today',
+    organizer: 'Local Notice Desk',
+    description: 'Expect traffic delays near Kalanki due to road maintenance this afternoon.',
+  },
+];
+
+export const nepaliNewsItems: NepaliNewsItem[] = [
+  {
+    id: 'onlinekhabar-manoj-sharma',
+    title: 'डा. मनोज शर्मा : चोलेन्द्रशमशेरका ‘हिरा’',
+    source: 'Online Khabar',
+    category: 'समाचार',
+    publishedLabel: '४ घण्टा अगाडि',
+    summary: 'प्रधानन्यायाधीश सिफारिस र संवैधानिक परिषद्को निर्णयपछि मनोज शर्माबारे चर्चा बढेको समाचार।',
+    body:
+      'संवैधानिक परिषद्को सिफारिसपछि मनोज शर्माको नाम फेरि सार्वजनिक बहसको केन्द्रमा आएको छ। समाचारले न्यायालय, वरिष्ठता क्रम, र राजनीतिक निर्णय प्रक्रियाबारे उठेका प्रश्नलाई संक्षेपमा समेट्छ।\n\nयो होम कार्डमा अहिले छोटो सार मात्र राखिएको छ। पछि backend बाट full article, image, source URL, and read status ल्याएर यही ठाउँमा देखाउन सकिन्छ।',
+    imageUrl: 'https://images.unsplash.com/photo-1589578527966-fdac0f44566c?w=320&h=220&fit=crop',
+    url: 'https://www.onlinekhabar.com/2026/05/1927509/dr-manoj-sharma-cholendra-shumshers-diamond',
+  },
+  {
+    id: 'onlinekhabar-hark-sudan',
+    title: 'सुदन मिसिंदा थप बलिया बने हर्क',
+    source: 'Online Khabar',
+    category: 'राजनीति',
+    publishedLabel: '४ घण्टा अगाडि',
+    summary: 'सुदन किरातीको पार्टी प्रवेशसँगै हर्क साम्पाङको राजनीतिक शक्ति र समीकरणबारे विश्लेषण।',
+    body:
+      'सुदन किराती जोडिएपछि हर्क साम्पाङको राजनीतिक दायरा र सांगठनिक आधार बलियो बनेको विश्लेषण समाचारमा प्रस्तुत छ। स्थानीय राजनीति, नयाँ शक्ति निर्माण, र समर्थकहरूको अपेक्षा यसमा मुख्य विषय छन्।\n\nयस्तो सामग्रीलाई पछि user preference अनुसार राजनीति, स्थानीय, प्रवास, खेलकुद आदि category मा filter गर्न सकिन्छ।',
+    imageUrl: 'https://images.unsplash.com/photo-1529107386315-e1a2ed48a620?w=320&h=220&fit=crop',
+    url: 'https://www.onlinekhabar.com/2026/05/1927549/hark-became-stronger-when-sudan-was-involved',
+  },
+  {
+    id: 'onlinekhabar-himalaya-sports',
+    title: 'हिमालय स्पोर्ट्सको औपचारिक घोषणा, फिफा विश्वकप प्रसारण हुने',
+    source: 'Online Khabar',
+    category: 'खेलकुद',
+    publishedLabel: '४ घण्टा अगाडि',
+    summary: 'नेपालमा फिफा विश्वकप प्रसारण अधिकार र हिमालय स्पोर्ट्सको औपचारिक घोषणाबारे समाचार।',
+    body:
+      'हिमालय स्पोर्ट्सको घोषणासँगै नेपालमा फिफा विश्वकप प्रसारण कसरी उपलब्ध हुनेछ भन्ने चासो बढेको छ। समाचारले प्रसारण अधिकार, मिडिया साझेदारी, र दर्शकसम्म पुग्ने योजनाबारे छोटो जानकारी दिन्छ।\n\nखेलकुद समाचारको लागि पछि live updates वा match reminder पनि यही card मा जोड्न सकिन्छ।',
+    imageUrl: 'https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?w=320&h=220&fit=crop',
+    url: 'https://www.onlinekhabar.com/2026/05/1927525/himalaya-sports-officially-announces-that-fifa-world-cup-will-be-broadcast',
+  },
+  {
+    id: 'onlinekhabar-electricity-europe',
+    title: 'के नेपालको विद्युत् युरोप निर्यात होला ?',
+    source: 'Online Khabar',
+    category: 'बिजनेस',
+    publishedLabel: '४ घण्टा अगाडि',
+    summary: 'नेपालको विद्युत् क्षेत्रीय ग्रिड हुँदै युरोपसम्म निर्यात हुन सक्ने सम्भावनाबारे विश्लेषण।',
+    body:
+      'नेपालले भारतमा विद्युत् निर्यात गरिरहेको सन्दर्भमा क्षेत्रीय grid र लामो दूरीको energy trade सम्भावनाबारे यो विश्लेषण केन्द्रित छ। युरोपसम्म बिजुली पुग्ने कुरा तत्काल सहज नभए पनि ठूलो पूर्वाधार र अन्तरदेशीय सहकार्यसँग जोडिएको विषय हो।\n\nबिजनेस news लाई पछि exchange rate, gold price, and market updates सँग जोडेर अझ उपयोगी बनाउन सकिन्छ।',
+    imageUrl: 'https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?w=320&h=220&fit=crop',
+    url: 'https://www.onlinekhabar.com/2026/05/1927464/will-nepals-electricity-be-exported-to-europe',
+  },
+];
 
 export const suchanaPatiPreviews: SuchanaPatiPreview[] = [
   { id: 'himalayan-momo-house', name: 'Himalayan Momo House', category: 'Restaurant', info: 'Fresh momo and Nepali snacks near the local market.', phoneNumber: '+9779800001001', photo: 'https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?w=240&h=240&fit=crop', rating: 4.6, showOnHome: true, homeOrder: 2, adType: 'inline-card' },

@@ -7,16 +7,51 @@ import { Screen } from '../components/Screen';
 import { colors, radius, spacing } from '../constants/theme';
 
 const menuItems = [
-  { icon: 'storefront-outline' as const, label: 'Nepali Business', href: '/nepali-business' as const },
-  { icon: 'newspaper-outline' as const, label: 'Suchana Pati', href: '/suchana-pati' as const },
-  { icon: 'book-outline' as const, label: 'कथा / कविता', href: '/katha-kabita' as const },
-  { icon: 'home-outline' as const, label: 'Rooms', href: '/rooms' as const },
-  { icon: 'pricetag-outline' as const, label: 'Buy & Sell', href: '/buy-sell' as const },
-  { icon: 'person-outline' as const, label: 'Profile' },
-  { icon: 'notifications-outline' as const, label: 'Notifications' },
-  { icon: 'settings-outline' as const, label: 'Settings' },
-  { icon: 'help-circle-outline' as const, label: 'Help' },
-  { icon: 'information-circle-outline' as const, label: 'About' },
+  {
+    accent: '#EA580C',
+    background: '#FFF7ED',
+    border: '#FDBA74',
+    description: 'Local services, shops, and trusted listings',
+    icon: 'storefront-outline' as const,
+    label: 'Nepali Business',
+    href: '/nepali-business' as const,
+  },
+  {
+    accent: '#0EA5E9',
+    background: '#F0F9FF',
+    border: '#7DD3FC',
+    description: 'Announcements, events, and community notices',
+    icon: 'newspaper-outline' as const,
+    label: 'Suchana Pati',
+    href: '/suchana-pati' as const,
+  },
+  {
+    accent: '#7C3AED',
+    background: '#F5F3FF',
+    border: '#C4B5FD',
+    description: 'Stories, poems, and gazal from the community',
+    icon: 'book-outline' as const,
+    label: 'कथा / कविता',
+    href: '/katha-kabita' as const,
+  },
+  {
+    accent: '#16A34A',
+    background: '#F0FDF4',
+    border: '#86EFAC',
+    description: 'Rooms, apartments, and shared spaces',
+    icon: 'home-outline' as const,
+    label: 'Rooms',
+    href: '/rooms' as const,
+  },
+  {
+    accent: '#A16207',
+    background: '#FFFBEB',
+    border: '#FDE68A',
+    description: 'Buy, sell, and discover nearby items',
+    icon: 'pricetag-outline' as const,
+    label: 'Buy & Sell',
+    href: '/buy-sell' as const,
+  },
 ];
 
 export default function PeopleScreen() {
@@ -50,6 +85,11 @@ export default function PeopleScreen() {
               </Link>
             </View>
 
+            <View style={styles.menuHeader}>
+              <Text style={styles.menuHeaderTitle}>Menu</Text>
+              <Text style={styles.menuHeaderText}>Explore community tools and local updates.</Text>
+            </View>
+
             <View style={styles.menuList}>
               {menuItems.map((item) => (
                 <Pressable
@@ -60,13 +100,21 @@ export default function PeopleScreen() {
                       router.push(item.href);
                     }
                   }}
-                  style={({ pressed }) => [styles.menuRow, pressed && styles.lightPressed]}
+                  style={({ pressed }) => [
+                    styles.menuRow,
+                    { backgroundColor: item.background, borderColor: item.border },
+                    pressed && styles.lightPressed,
+                  ]}
                 >
-                  <View style={styles.menuIcon}>
-                    <Ionicons name={item.icon} size={20} color="#003577" />
+                  <View style={[styles.menuAccent, { backgroundColor: item.accent }]} />
+                  <View style={[styles.menuIcon, { borderColor: item.border }]}>
+                    <Ionicons name={item.icon} size={21} color={item.accent} />
                   </View>
-                  <Text style={styles.menuText}>{item.label}</Text>
-                  <Ionicons name="chevron-forward" size={18} color={colors.mutedText} />
+                  <View style={styles.menuTextGroup}>
+                    <Text style={styles.menuText}>{item.label}</Text>
+                    <Text style={styles.menuDescription}>{item.description}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={19} color={item.accent} />
                 </Pressable>
               ))}
             </View>
@@ -105,7 +153,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   pageContent: {
-    gap: spacing.md,
+    gap: spacing.sm,
     padding: spacing.md,
   },
   belowArea: {
@@ -115,11 +163,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   topBar: {
-    minHeight: 58,
+    minHeight: 42,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    paddingTop: spacing.sm,
   },
   backButton: {
     width: 42,
@@ -134,32 +181,65 @@ const styles = StyleSheet.create({
   menuList: {
     gap: spacing.sm,
   },
+  menuHeader: {
+    gap: spacing.xs,
+    paddingHorizontal: spacing.xs,
+    paddingBottom: spacing.xs,
+  },
+  menuHeaderTitle: {
+    color: colors.text,
+    fontSize: 28,
+    fontWeight: '900',
+    lineHeight: 34,
+  },
+  menuHeaderText: {
+    color: colors.mutedText,
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
   menuRow: {
-    minHeight: 58,
+    minHeight: 76,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    paddingHorizontal: spacing.md,
+    overflow: 'hidden',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
     borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: radius.md,
-    backgroundColor: colors.surface,
+  },
+  menuAccent: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 5,
   },
   menuIcon: {
-    width: 36,
-    height: 36,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#BFDBFE',
-    borderRadius: radius.sm,
-    backgroundColor: '#EFF6FF',
+    borderRadius: radius.md,
+    backgroundColor: '#FFFFFF',
+  },
+  menuTextGroup: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
   },
   menuText: {
-    flex: 1,
     color: colors.text,
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: '900',
+  },
+  menuDescription: {
+    color: colors.mutedText,
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 17,
   },
   lightPressed: {
     opacity: 0.72,
