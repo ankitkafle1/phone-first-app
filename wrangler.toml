@@ -1,0 +1,11 @@
+name = "phone-first-app"
+compatibility_date = "2026-05-10"
+compatibility_flags = ["nodejs_compat"]
+
+[build]
+command = "npm ci && npm run build:cloudflare"
+cwd = "frontend"
+
+[assets]
+directory = "./frontend/dist"
+not_found_handling = "single-page-application"
