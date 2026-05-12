@@ -1,12 +1,9 @@
 import {
-  DirectionsRenderer,
   GoogleMap,
   MarkerF,
-  PolylineF,
   useLoadScript,
 } from '@react-google-maps/api';
 import Constants from 'expo-constants';
-import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 type Passenger = {
@@ -23,25 +20,10 @@ type DriverMapProps = {
     longitude: number;
   };
   driverSharingLocation: boolean;
-  finalDestination: {
-    name: string;
-    shortName: string;
-    latitude: number;
-    longitude: number;
-  };
   height?: number;
   passengers: Passenger[];
-  routeStops: Passenger[];
   selectedPassengerId: string;
-  onRouteResolved?: (summary: RouteSummary) => void;
   onSelectPassenger: (passengerId: string) => void;
-};
-
-type RouteSummary = {
-  distanceKm: number;
-  durationText: string;
-  waypointOrder: number[];
-  source: 'google' | 'fallback';
 };
 
 const mapOptions = {
@@ -53,23 +35,12 @@ const mapOptions = {
   zoomControl: true,
 };
 
-const routeOptions = {
-  clickable: false,
-  geodesic: true,
-  strokeColor: '#2d6cdf',
-  strokeOpacity: 0.86,
-  strokeWeight: 5,
-};
-
 export default function DriverMap({
   driverLocation,
   driverSharingLocation,
-  finalDestination,
   height = 430,
   passengers,
-  routeStops,
   selectedPassengerId,
-  onRouteResolved,
   onSelectPassenger,
 }: DriverMapProps) {
   const apiKey =
@@ -83,11 +54,8 @@ export default function DriverMap({
         detail="Set EXPO_PUBLIC_GOOGLE_MAPS_API_KEY to show the live Google map."
         driverLocation={driverLocation}
         driverSharingLocation={driverSharingLocation}
-        finalDestination={finalDestination}
         passengers={passengers}
-        routeStops={routeStops}
         selectedPassengerId={selectedPassengerId}
-        onRouteResolved={onRouteResolved}
         onSelectPassenger={onSelectPassenger}
       />
     );
@@ -98,12 +66,9 @@ export default function DriverMap({
       apiKey={apiKey}
       driverLocation={driverLocation}
       driverSharingLocation={driverSharingLocation}
-      finalDestination={finalDestination}
       height={height}
       passengers={passengers}
-      routeStops={routeStops}
       selectedPassengerId={selectedPassengerId}
-      onRouteResolved={onRouteResolved}
       onSelectPassenger={onSelectPassenger}
     />
   );
@@ -113,56 +78,18 @@ function LoadedGoogleMap({
   apiKey,
   driverLocation,
   driverSharingLocation,
-  finalDestination,
   height = 430,
   passengers,
-  routeStops,
   selectedPassengerId,
-  onRouteResolved,
   onSelectPassenger,
 }: DriverMapProps & { apiKey: string }) {
-  const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
-  const [directionsError, setDirectionsError] = useState<string | null>(null);
   const { isLoaded, loadError } = useLoadScript({
     googleMapsApiKey: apiKey,
   });
-
-  const directPath = useMemo(
-    () => [driverLocation, ...routeStops, finalDestination].map(toGooglePosition),
-    [driverLocation, finalDestination, routeStops],
+  const selectedPassenger = passengers.find(
+    (passenger) => passenger.id === selectedPassengerId,
   );
-
-  useEffect(() => {
-    if (!isLoaded) {
-      return;
-    }
-
-    const service = new google.maps.DirectionsService();
-    setDirections(null);
-    setDirectionsError(null);
-
-    service.route(
-      {
-        destination: toGooglePosition(finalDestination),
-        optimizeWaypoints: true,
-        origin: toGooglePosition(driverLocation),
-        travelMode: google.maps.TravelMode.DRIVING,
-        waypoints: routeStops.map((stop) => ({
-          location: toGooglePosition(stop),
-          stopover: true,
-        })),
-      },
-      (result, status) => {
-        if (status !== google.maps.DirectionsStatus.OK || !result) {
-          setDirectionsError(status);
-          return;
-        }
-
-        setDirections(result);
-        onRouteResolved?.(getRouteSummary(result));
-      },
-    );
-  }, [driverLocation, finalDestination, isLoaded, onRouteResolved, routeStops]);
+  const mapCenter = toGooglePosition(selectedPassenger ?? driverLocation);
 
   if (loadError) {
     return (
@@ -171,12 +98,9 @@ function LoadedGoogleMap({
         detail="Check the API key, billing, Maps JavaScript API access, and allowed domains."
         driverLocation={driverLocation}
         driverSharingLocation={driverSharingLocation}
-        finalDestination={finalDestination}
         height={height}
         passengers={passengers}
-        routeStops={routeStops}
         selectedPassengerId={selectedPassengerId}
-        onRouteResolved={onRouteResolved}
         onSelectPassenger={onSelectPassenger}
       />
     );
@@ -192,39 +116,22 @@ function LoadedGoogleMap({
 
   return (
     <GoogleMap
-      center={toGooglePosition(driverLocation)}
+      center={mapCenter}
       mapContainerStyle={{ height, width: '100%' }}
       options={mapOptions}
       zoom={13}
     >
-      {directions ? (
-        <DirectionsRenderer
-          directions={directions}
-          options={{
-            polylineOptions: routeOptions,
-            preserveViewport: false,
-            suppressMarkers: true,
-          }}
-        />
-      ) : (
-        <PolylineF options={routeOptions} path={directPath} />
-      )}
       <MarkerF
-        icon={createMarkerIcon(driverSharingLocation ? '#1f9a63' : '#d8482f', 'D', 42)}
+        icon={createMarkerIcon('#d8482f', 'D', 42)}
         position={toGooglePosition(driverLocation)}
         title={driverSharingLocation ? 'Driver location shared' : 'Driver location hidden'}
-      />
-      <MarkerF
-        icon={createMarkerIcon('#2d6cdf', finalDestination.shortName, 46)}
-        position={toGooglePosition(finalDestination)}
-        title={finalDestination.name}
       />
       {passengers.map((passenger) => (
         <MarkerF
           key={passenger.id}
           icon={createMarkerIcon(
             getPassengerColor(passenger.status),
-            passenger.name.charAt(0),
+            getFirstName(passenger.name),
             selectedPassengerId === passenger.id ? 42 : 36,
           )}
           onClick={() => onSelectPassenger(passenger.id)}
@@ -234,39 +141,6 @@ function LoadedGoogleMap({
       ))}
     </GoogleMap>
   );
-}
-
-function getRouteSummary(result: google.maps.DirectionsResult): RouteSummary {
-  const route = result.routes[0];
-  const totals = route.legs.reduce(
-    (summary, leg) => ({
-      meters: summary.meters + (leg.distance?.value ?? 0),
-      seconds: summary.seconds + (leg.duration?.value ?? 0),
-    }),
-    { meters: 0, seconds: 0 },
-  );
-
-  return {
-    distanceKm: totals.meters / 1000,
-    durationText: formatDuration(totals.seconds),
-    source: 'google',
-    waypointOrder: route.waypoint_order ?? [],
-  };
-}
-
-function formatDuration(totalSeconds: number) {
-  const minutes = Math.max(1, Math.round(totalSeconds / 60));
-
-  if (minutes < 60) {
-    return `${minutes} min`;
-  }
-
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-
-  return remainingMinutes === 0
-    ? `${hours} hr`
-    : `${hours} hr ${remainingMinutes} min`;
 }
 
 function toGooglePosition(location: { latitude: number; longitude: number }) {
@@ -281,15 +155,11 @@ function MapFallback({
   detail,
   driverLocation,
   driverSharingLocation,
-  finalDestination,
   height = 430,
   passengers,
-  routeStops,
   selectedPassengerId,
   onSelectPassenger,
 }: DriverMapProps & { title: string; detail: string }) {
-  const routePath = [driverLocation, ...routeStops, finalDestination];
-
   return (
     <View style={[styles.fallbackMap, { height }]}>
       <View style={styles.fallbackMessage}>
@@ -299,25 +169,11 @@ function MapFallback({
       <View
         style={[
           styles.fallbackDriver,
-          driverSharingLocation
-            ? styles.fallbackDriverSharing
-            : styles.fallbackDriverHidden,
+          styles.fallbackDriverRed,
           getMarkerPosition(driverLocation),
         ]}
       >
         <Text style={styles.markerText}>D</Text>
-      </View>
-      {routePath.slice(0, -1).map((point, index) => (
-        <View
-          key={`${point.latitude}-${point.longitude}-${index}`}
-          style={[
-            styles.routeSegment,
-            getRouteSegmentStyle(point, routePath[index + 1]),
-          ]}
-        />
-      ))}
-      <View style={[styles.destinationMarker, getMarkerPosition(finalDestination)]}>
-        <Text style={styles.destinationMarkerText}>{finalDestination.shortName}</Text>
       </View>
       {passengers.map((passenger) => (
         <Pressable
@@ -330,7 +186,9 @@ function MapFallback({
             getMarkerPosition(passenger),
           ]}
         >
-          <Text style={styles.markerText}>{passenger.name.charAt(0)}</Text>
+          <Text numberOfLines={1} style={styles.markerText}>
+            {getFirstName(passenger.name)}
+          </Text>
         </Pressable>
       ))}
     </View>
@@ -357,17 +215,30 @@ function getRouteSegmentStyle(
 }
 
 function createMarkerIcon(color: string, label: string, size: number) {
+  const width = Math.max(size, Math.min(96, label.length * 8 + 18));
+  const fontSize = label.length > 1 ? 11 : size * 0.38;
   const svg = `
-    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
-      <rect x="3" y="3" width="${size - 6}" height="${size - 6}" rx="8" fill="${color}" stroke="white" stroke-width="3"/>
-      <text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="${size * 0.38}" font-weight="800" fill="white">${label}</text>
+    <svg width="${width}" height="${size}" viewBox="0 0 ${width} ${size}" xmlns="http://www.w3.org/2000/svg">
+      <rect x="3" y="3" width="${width - 6}" height="${size - 6}" rx="8" fill="${color}" stroke="white" stroke-width="3"/>
+      <text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="800" fill="white">${escapeSvgText(label)}</text>
     </svg>
   `;
 
   return {
     url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
-    scaledSize: new google.maps.Size(size, size),
+    scaledSize: new google.maps.Size(width, size),
   };
+}
+
+function escapeSvgText(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function getFirstName(name: string) {
+  return name.trim().split(/\s+/)[0] || name;
 }
 
 function getPassengerColor(status: Passenger['status']) {
@@ -461,51 +332,21 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 42,
   },
-  fallbackDriverSharing: {
-    backgroundColor: '#1f9a63',
-  },
-  fallbackDriverHidden: {
+  fallbackDriverRed: {
     backgroundColor: '#d8482f',
-  },
-  routeSegment: {
-    backgroundColor: '#2d6cdf',
-    borderRadius: 2,
-    height: 4,
-    marginTop: -2,
-    position: 'absolute',
-    transformOrigin: 'left center',
-    zIndex: 1,
-  },
-  destinationMarker: {
-    alignItems: 'center',
-    backgroundColor: '#2d6cdf',
-    borderColor: '#ffffff',
-    borderRadius: 8,
-    borderWidth: 3,
-    height: 44,
-    justifyContent: 'center',
-    marginLeft: -22,
-    marginTop: -22,
-    position: 'absolute',
-    width: 44,
-    zIndex: 2,
-  },
-  destinationMarkerText: {
-    color: '#ffffff',
-    fontSize: 11,
-    fontWeight: '900',
   },
   fallbackMarker: {
     alignItems: 'center',
     borderColor: '#ffffff',
     borderRadius: 8,
     borderWidth: 3,
-    height: 36,
+    height: 32,
     justifyContent: 'center',
-    marginLeft: -18,
-    marginTop: -18,
+    marginLeft: -32,
+    marginTop: -16,
+    paddingHorizontal: 6,
     position: 'absolute',
-    width: 36,
+    width: 64,
   },
   selectedFallbackMarker: {
     borderColor: '#1f2d2b',
@@ -513,7 +354,7 @@ const styles = StyleSheet.create({
   },
   markerText: {
     color: '#ffffff',
-    fontSize: 14,
+    fontSize: 10,
     fontWeight: '900',
   },
 });

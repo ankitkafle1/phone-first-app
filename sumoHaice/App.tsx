@@ -1,19 +1,24 @@
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useState } from 'react';
 import {
+  Linking,
+  Platform,
   Pressable,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import DriverMap from './DriverMap';
 
 type Passenger = {
   id: string;
+  ticketNumber?: string;
   name: string;
   stop: string;
+  routeInfo?: string;
   eta: string;
   phone: string;
   status: 'ready' | 'waiting' | 'offline';
@@ -22,103 +27,40 @@ type Passenger = {
   longitude: number;
 };
 
+type UserLocationInfo = {
+  userId?: string;
+  name?: string;
+  userName?: string;
+  phoneNumber?: string;
+  latitude: number;
+  longitude: number;
+  accuracyMeters?: number;
+  capturedAt?: string;
+};
+
 type LocationPoint = {
   latitude: number;
   longitude: number;
 };
 
-type RouteSummary = {
-  distanceKm: number;
-  durationText: string;
-  waypointOrder: number[];
-  source: 'google' | 'fallback';
+type LocationShare = {
+  shareId: string;
+  shareToken: string;
+  riderUrl: string;
+  location: LocationPoint & {
+    accuracyMeters?: number;
+  };
+  capturedAt: string;
+  expiresAt: string;
 };
 
-type ExitPoint = LocationPoint & {
-  id: string;
-  name: string;
-  shortName: string;
-  corridor: string;
-};
-
-const driverLocation = {
+const fallbackDriverLocation = {
   latitude: 27.7172,
   longitude: 85.324,
 };
 
-const kathmanduExitPoints: ExitPoint[] = [
-  {
-    id: 'koteshwor',
-    name: 'Koteshwor Exit',
-    shortName: 'Koteshwor',
-    corridor: 'East / Bhaktapur',
-    latitude: 27.6782,
-    longitude: 85.3498,
-  },
-  {
-    id: 'kalanki',
-    name: 'Kalanki Exit',
-    shortName: 'Kalanki',
-    corridor: 'West / Thankot',
-    latitude: 27.6948,
-    longitude: 85.2792,
-  },
-  {
-    id: 'balkhu',
-    name: 'Balkhu Exit',
-    shortName: 'Balkhu',
-    corridor: 'South / Kirtipur',
-    latitude: 27.6785,
-    longitude: 85.2996,
-  },
-];
-
-const passengers: Passenger[] = [
-  {
-    id: '1',
-    name: 'Aarav Mehta',
-    stop: 'Thamel Chowk',
-    eta: '3 min',
-    phone: '+977 980 123 0128',
-    status: 'ready',
-    lastSeen: 'Live now',
-    latitude: 27.7154,
-    longitude: 85.3123,
-  },
-  {
-    id: '2',
-    name: 'Sophia Chen',
-    stop: 'Naxal Bhagwati',
-    eta: '6 min',
-    phone: '+977 980 123 0173',
-    status: 'ready',
-    lastSeen: 'Live now',
-    latitude: 27.717,
-    longitude: 85.3287,
-  },
-  {
-    id: '3',
-    name: 'Maya Iyer',
-    stop: 'New Baneshwor',
-    eta: '9 min',
-    phone: '+977 980 123 0199',
-    status: 'waiting',
-    lastSeen: 'Link sent',
-    latitude: 27.6928,
-    longitude: 85.342,
-  },
-  {
-    id: '4',
-    name: 'Noah Williams',
-    stop: 'Patan Dhoka',
-    eta: '12 min',
-    phone: '+977 980 123 0112',
-    status: 'offline',
-    lastSeen: 'Not opened',
-    latitude: 27.6788,
-    longitude: 85.3206,
-  },
-];
+const backendUserLocationsApiUrl = 'http://192.168.1.250:8089/api/user-locations/vehicle1';
+const locationPollIntervalMs = 30_000;
 
 const statusCopy = {
   ready: 'Location shared',
@@ -126,45 +68,267 @@ const statusCopy = {
   offline: 'No response',
 };
 
+const emptyPassengerForm = {
+  ticketNumber: '',
+  name: '',
+  phone: '',
+  routeInfo: '',
+};
+
 export default function App() {
+  const [deviceTime, setDeviceTime] = useState(() => new Date());
+  const [driverLocation, setDriverLocation] = useState<LocationPoint>(fallbackDriverLocation);
   const [driverSharingLocation, setDriverSharingLocation] = useState(false);
+  const [activeLocationShare, setActiveLocationShare] = useState<LocationShare | null>(null);
   const [mapExpanded, setMapExpanded] = useState(false);
+  const [addPassengerOpen, setAddPassengerOpen] = useState(false);
+  const [passengerForm, setPassengerForm] = useState(emptyPassengerForm);
+  const [rosterExpanded, setRosterExpanded] = useState(true);
   const [pickedUpPassengerIds, setPickedUpPassengerIds] = useState<string[]>([]);
-  const [routeSummary, setRouteSummary] = useState<RouteSummary | null>(null);
-  const [selectedExitId, setSelectedExitId] = useState(kathmanduExitPoints[0].id);
-  const [selectedPassengerId, setSelectedPassengerId] = useState(passengers[0].id);
-  const finalDestination =
-    kathmanduExitPoints.find((exitPoint) => exitPoint.id === selectedExitId) ??
-    kathmanduExitPoints[0];
+  const [locationSentPassengerIds, setLocationSentPassengerIds] = useState<string[]>([]);
+  const [userLocations, setUserLocations] = useState<UserLocationInfo[]>([]);
+  const [passengerRoster, setPassengerRoster] = useState<Passenger[]>([]);
+  const [pickupComplete, setPickupComplete] = useState(false);
+  const [selectedPassengerId, setSelectedPassengerId] = useState('');
+  const apiPassengers = useMemo(
+    () => userLocations.map(locationToPassenger),
+    [userLocations],
+  );
+  const passengers = passengerRoster;
   const remainingPassengers = useMemo(
     () => passengers.filter((passenger) => !pickedUpPassengerIds.includes(passenger.id)),
-    [pickedUpPassengerIds],
+    [passengers, pickedUpPassengerIds],
   );
+  const visibleMapPassengers = useMemo(
+    () =>
+      driverSharingLocation
+        ? remainingPassengers.filter((passenger) => passenger.status === 'ready')
+        : [],
+    [driverSharingLocation, remainingPassengers],
+  );
+  const sortedPassengers = useMemo(
+    () =>
+      [...passengers].sort((first, second) => {
+        const firstPickedUp = pickedUpPassengerIds.includes(first.id);
+        const secondPickedUp = pickedUpPassengerIds.includes(second.id);
 
-  const routeStops = useMemo(
-    () => getPickupOrder(driverLocation, finalDestination, remainingPassengers),
-    [finalDestination, remainingPassengers],
+        if (firstPickedUp === secondPickedUp) {
+          return 0;
+        }
+
+        return firstPickedUp ? 1 : -1;
+      }),
+    [passengers, pickedUpPassengerIds],
   );
-  const routeDistanceKm = useMemo(
-    () => getRouteDistanceKm(driverLocation, routeStops, finalDestination),
-    [finalDestination, routeStops],
-  );
-  const routeDistanceLabel = `${(routeSummary?.distanceKm ?? routeDistanceKm).toFixed(1)} km`;
-  const routeDurationLabel = routeSummary?.durationText;
+  const allPassengersPickedUp =
+    driverSharingLocation &&
+    !pickupComplete &&
+    passengers.length > 0 &&
+    remainingPassengers.length === 0;
+  const pickupSessionComplete = pickupComplete || allPassengersPickedUp;
   const selectedPassenger =
-    passengers.find((passenger) => passenger.id === selectedPassengerId) ??
-    passengers[0];
+    passengers.find((passenger) => passenger.id === selectedPassengerId) ?? passengers[0];
+  const selectedPassengerIsPickedUp = selectedPassenger
+    ? pickedUpPassengerIds.includes(selectedPassenger.id)
+    : false;
+  const rosterCanCollapse = pickupSessionComplete && sortedPassengers.length > 0;
+  const deviceClock = useMemo(() => formatDeviceClock(deviceTime), [deviceTime]);
 
   useEffect(() => {
-    setRouteSummary(null);
-  }, [pickedUpPassengerIds, selectedExitId]);
+    if (apiPassengers.length === 0) {
+      return;
+    }
+
+    setPassengerRoster((currentPassengers) =>
+      mergePassengerRoster(currentPassengers, apiPassengers),
+    );
+  }, [apiPassengers]);
+
+  useEffect(() => {
+    const clockInterval = setInterval(() => {
+      setDeviceTime(new Date());
+    }, 1000);
+
+    return () => {
+      clearInterval(clockInterval);
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function pollBackendLocations() {
+      if (!driverSharingLocation) {
+        setUserLocations([]);
+        return;
+      }
+
+      if (pickupComplete) {
+        return;
+      }
+
+      const backendUserLocations = await getUserLocation();
+
+      if (!isMounted) {
+        return;
+      }
+
+      setUserLocations(backendUserLocations);
+    }
+
+    void pollBackendLocations();
+    const pollInterval = setInterval(() => {
+      void pollBackendLocations();
+    }, locationPollIntervalMs);
+
+    return () => {
+      isMounted = false;
+      clearInterval(pollInterval);
+    };
+  }, [driverSharingLocation, pickupComplete]);
+
+  useEffect(() => {
+    if (!allPassengersPickedUp) {
+      return;
+    }
+
+    setPickupComplete(true);
+  }, [allPassengersPickedUp]);
+
+  useEffect(() => {
+    if (!pickupSessionComplete) {
+      setRosterExpanded(true);
+    }
+  }, [pickupSessionComplete]);
+
+  useEffect(() => {
+    if (passengers.length === 0) {
+      setSelectedPassengerId('');
+      return;
+    }
+
+    if (!passengers.some((passenger) => passenger.id === selectedPassengerId)) {
+      setSelectedPassengerId(passengers[0].id);
+    }
+  }, [passengers, selectedPassengerId]);
+
+  useEffect(() => {
+    if (!driverSharingLocation || !activeLocationShare) {
+      return;
+    }
+
+    const updateInterval = setInterval(() => {
+      void updateLocationShare(activeLocationShare, driverLocation)
+        .then(setActiveLocationShare)
+        .catch((error) => {
+          console.warn('Unable to update location share', error);
+        });
+    }, 20_000);
+
+    return () => {
+      clearInterval(updateInterval);
+    };
+  }, [activeLocationShare, driverLocation, driverSharingLocation]);
 
   function togglePassengerPickup(passengerId: string) {
+    const isCurrentlyPickedUp = pickedUpPassengerIds.includes(passengerId);
+    const nextPendingPassenger = passengers.find(
+      (passenger) =>
+        passenger.id !== passengerId && !pickedUpPassengerIds.includes(passenger.id),
+    );
+
     setPickedUpPassengerIds((currentIds) =>
       currentIds.includes(passengerId)
         ? currentIds.filter((currentId) => currentId !== passengerId)
         : [...currentIds, passengerId],
     );
+
+    if (isCurrentlyPickedUp) {
+      setSelectedPassengerId(passengerId);
+      setPickupComplete(false);
+      return;
+    }
+
+    if (selectedPassengerId === passengerId) {
+      setSelectedPassengerId(nextPendingPassenger?.id ?? '');
+    }
+  }
+
+  function updatePassengerForm(field: keyof typeof passengerForm, value: string) {
+    setPassengerForm((currentForm) => ({
+      ...currentForm,
+      [field]: value,
+    }));
+  }
+
+  function addPassenger() {
+    const ticketNumber = passengerForm.ticketNumber.trim();
+    const name = passengerForm.name.trim();
+    const phone = passengerForm.phone.trim();
+    const routeInfo = passengerForm.routeInfo.trim();
+
+    if (!ticketNumber || !name || !phone || !routeInfo) {
+      return;
+    }
+
+    const passenger: Passenger = {
+      id: normalizePhoneNumber(phone) || `manual-${ticketNumber}`,
+      ticketNumber,
+      name,
+      stop: routeInfo,
+      routeInfo,
+      eta: '--',
+      phone,
+      status: 'waiting',
+      lastSeen: 'Added manually',
+      latitude: driverLocation.latitude,
+      longitude: driverLocation.longitude,
+    };
+
+    setPassengerRoster((currentPassengers) =>
+      mergePassengerRoster(currentPassengers, [passenger]),
+    );
+    setPickedUpPassengerIds((currentIds) =>
+      currentIds.filter((currentId) => currentId !== passenger.id),
+    );
+    setPickupComplete(false);
+    setRosterExpanded(true);
+    setSelectedPassengerId(passenger.id);
+    setPassengerForm(emptyPassengerForm);
+    setAddPassengerOpen(false);
+  }
+
+  async function toggleDriverLocationSharing() {
+    if (driverSharingLocation) {
+      setDriverSharingLocation(false);
+      setActiveLocationShare(null);
+      setPassengerRoster([]);
+      setUserLocations([]);
+      setPickupComplete(false);
+      setRosterExpanded(true);
+      return;
+    }
+
+    setPickupComplete(false);
+    const locationShare = await createLocationShare(driverLocation);
+    setActiveLocationShare(locationShare);
+    setDriverSharingLocation(true);
+  }
+
+  async function sendDriverLocation(passenger: Passenger) {
+    const locationShare = activeLocationShare ?? (await createLocationShare(driverLocation));
+    const smsUrl = getDriverLocationSmsUrl(passenger, locationShare.riderUrl);
+
+    try {
+      await Linking.openURL(smsUrl);
+      setActiveLocationShare(locationShare);
+      setDriverSharingLocation(true);
+      setLocationSentPassengerIds((currentIds) =>
+        currentIds.includes(passenger.id) ? currentIds : [...currentIds, passenger.id],
+      );
+    } catch (error) {
+      console.warn('Unable to open SMS composer', error);
+    }
   }
 
   if (mapExpanded) {
@@ -182,12 +346,8 @@ export default function App() {
             <View style={styles.expandedMapTitleBlock}>
               <Text style={styles.expandedMapTitle}>Live pickup map</Text>
               <Text style={styles.expandedMapMeta}>
-                Exit via {finalDestination.shortName}
-                {routeDurationLabel ? ` · ${routeDurationLabel}` : ''}
+                {pickupSessionComplete ? 'All pickups complete' : 'Passenger locations'}
               </Text>
-            </View>
-            <View style={styles.expandedDistanceBadge}>
-              <Text style={styles.expandedDistanceText}>{routeDistanceLabel}</Text>
             </View>
           </View>
 
@@ -195,25 +355,53 @@ export default function App() {
             <DriverMap
               driverLocation={driverLocation}
               driverSharingLocation={driverSharingLocation}
-              finalDestination={finalDestination}
               height={620}
-              passengers={passengers}
-              routeStops={routeStops}
+              passengers={visibleMapPassengers}
               selectedPassengerId={selectedPassengerId}
-              onRouteResolved={setRouteSummary}
               onSelectPassenger={setSelectedPassengerId}
             />
           </View>
 
           <View style={styles.expandedFocusCard}>
-            <View>
-              <Text style={styles.focusName}>{selectedPassenger.name}</Text>
-              <Text style={styles.focusStop}>{selectedPassenger.stop}</Text>
-            </View>
-            <View style={styles.focusEta}>
-              <Text style={styles.focusEtaValue}>{selectedPassenger.eta}</Text>
-              <Text style={styles.focusEtaLabel}>ETA</Text>
-            </View>
+            {pickupSessionComplete ? (
+              <View>
+                <Text style={styles.focusName}>Free drive</Text>
+                <Text style={styles.focusStop}>Only driver location is being shared</Text>
+              </View>
+            ) : selectedPassenger ? (
+              <>
+                <View>
+                  <Text style={styles.focusName}>{getFirstName(selectedPassenger.name)}</Text>
+                  <Text style={styles.focusStop}>{selectedPassenger.stop}</Text>
+                </View>
+                <View style={styles.focusEta}>
+                  <Text style={styles.focusEtaValue}>{selectedPassenger.eta}</Text>
+                  <Text style={styles.focusEtaLabel}>ETA</Text>
+                  {!selectedPassengerIsPickedUp && (
+                    <Pressable
+                      onPress={() => togglePassengerPickup(selectedPassenger.id)}
+                      style={({ pressed }) => [
+                        styles.focusPickupButton,
+                        pressed && styles.buttonPressed,
+                      ]}
+                    >
+                      <Text style={styles.focusPickupText}>Mark pickup</Text>
+                    </Pressable>
+                  )}
+                </View>
+              </>
+            ) : (
+              <View>
+                <Text style={styles.focusName}>
+                  {driverSharingLocation ? 'Waiting for users' : 'Location hidden'}
+                </Text>
+                <Text style={styles.focusStop}>
+                  {driverSharingLocation
+                    ? 'Polling passenger locations'
+                    : 'Start sharing to show users'}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
       </SafeAreaView>
@@ -227,7 +415,7 @@ export default function App() {
         <View style={styles.topBar}>
           <View style={styles.headerCopy}>
             <Text style={styles.appName}>SumoHaice Driver</Text>
-            <Text style={styles.routeText}>Kathmandu pickup route</Text>
+            <Text style={styles.routeText}>Live pickup locations</Text>
           </View>
           <Pressable
             accessibilityLabel={
@@ -235,7 +423,9 @@ export default function App() {
                 ? 'Driver location is shared with passengers. Tap to stop sharing.'
                 : 'Driver location is hidden from passengers. Tap to share.'
             }
-            onPress={() => setDriverSharingLocation((current) => !current)}
+            onPress={() => {
+              void toggleDriverLocationSharing();
+            }}
             style={({ pressed }) => [
               styles.liveDriveIndicator,
               pressed && styles.buttonPressed,
@@ -260,8 +450,8 @@ export default function App() {
             </View>
           </Pressable>
           <View style={styles.shiftBadge}>
-            <Text style={styles.shiftTime}>07:25</Text>
-            <Text style={styles.shiftLabel}>AM</Text>
+            <Text style={styles.shiftTime}>{deviceClock.time}</Text>
+            <Text style={styles.shiftLabel}>{deviceClock.period}</Text>
           </View>
         </View>
 
@@ -282,7 +472,9 @@ export default function App() {
             </Text>
           </View>
           <Pressable
-            onPress={() => setDriverSharingLocation((current) => !current)}
+            onPress={() => {
+              void toggleDriverLocationSharing();
+            }}
             style={({ pressed }) => [
               styles.sharingToggleButton,
               driverSharingLocation ? styles.stopSharingButton : styles.startSharingButton,
@@ -300,64 +492,15 @@ export default function App() {
           </Pressable>
         </View>
 
-        <View style={styles.exitSelector}>
-          <View style={styles.exitSelectorHeader}>
-            <View>
-              <Text style={styles.exitSelectorTitle}>Kathmandu exit point</Text>
-              <Text style={styles.exitSelectorMeta}>
-                Outbound route, customizable by city and direction
-              </Text>
-            </View>
-            <Text style={styles.exitRouteDistance}>{routeDistanceLabel}</Text>
-          </View>
-
-          <View style={styles.exitOptions}>
-            {kathmanduExitPoints.map((exitPoint) => {
-              const isSelected = exitPoint.id === selectedExitId;
-
-              return (
-                <Pressable
-                  key={exitPoint.id}
-                  onPress={() => setSelectedExitId(exitPoint.id)}
-                  style={({ pressed }) => [
-                    styles.exitOption,
-                    isSelected && styles.exitOptionSelected,
-                    pressed && styles.buttonPressed,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.exitOptionName,
-                      isSelected && styles.exitOptionNameSelected,
-                    ]}
-                  >
-                    {exitPoint.shortName}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.exitOptionCorridor,
-                      isSelected && styles.exitOptionCorridorSelected,
-                    ]}
-                  >
-                    {exitPoint.corridor}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-
         <View style={styles.mapPanel}>
           <View style={styles.mapHeader}>
             <View>
               <Text style={styles.sectionTitle}>Live pickup map</Text>
               <Text style={styles.sectionMeta}>
-                Pickup route exits via {finalDestination.shortName}
-                {routeDurationLabel ? ` · ${routeDurationLabel}` : ''}
+                {pickupSessionComplete ? 'All pickups complete · free drive' : 'Passenger locations'}
               </Text>
             </View>
             <View style={styles.mapHeaderActions}>
-              <Text style={styles.distanceText}>{routeDistanceLabel}</Text>
               <Pressable
                 onPress={() => setMapExpanded(true)}
                 style={({ pressed }) => [styles.openMapButton, pressed && styles.buttonPressed]}
@@ -370,46 +513,154 @@ export default function App() {
           <DriverMap
             driverLocation={driverLocation}
             driverSharingLocation={driverSharingLocation}
-            finalDestination={finalDestination}
             height={520}
-            passengers={passengers}
-            routeStops={routeStops}
+            passengers={visibleMapPassengers}
             selectedPassengerId={selectedPassengerId}
-            onRouteResolved={setRouteSummary}
             onSelectPassenger={setSelectedPassengerId}
           />
 
           <View style={styles.focusCard}>
-            <View>
-              <Text style={styles.focusName}>{selectedPassenger.name}</Text>
-              <Text style={styles.focusStop}>{selectedPassenger.stop}</Text>
-            </View>
-            <View style={styles.focusEta}>
-              <Text style={styles.focusEtaValue}>{selectedPassenger.eta}</Text>
-              <Text style={styles.focusEtaLabel}>ETA</Text>
-            </View>
+            {pickupSessionComplete ? (
+              <View>
+                <Text style={styles.focusName}>Free drive</Text>
+                <Text style={styles.focusStop}>Only driver location is being shared</Text>
+              </View>
+            ) : selectedPassenger ? (
+              <>
+                <View>
+                  <Text style={styles.focusName}>{getFirstName(selectedPassenger.name)}</Text>
+                  <Text style={styles.focusStop}>{selectedPassenger.stop}</Text>
+                </View>
+                <View style={styles.focusEta}>
+                  <Text style={styles.focusEtaValue}>{selectedPassenger.eta}</Text>
+                  <Text style={styles.focusEtaLabel}>ETA</Text>
+                  {!selectedPassengerIsPickedUp && (
+                    <Pressable
+                      onPress={() => togglePassengerPickup(selectedPassenger.id)}
+                      style={({ pressed }) => [
+                        styles.focusPickupButton,
+                        pressed && styles.buttonPressed,
+                      ]}
+                    >
+                      <Text style={styles.focusPickupText}>Mark pickup</Text>
+                    </Pressable>
+                  )}
+                </View>
+              </>
+            ) : (
+              <View>
+                <Text style={styles.focusName}>
+                  {driverSharingLocation ? 'Waiting for users' : 'Location hidden'}
+                </Text>
+                <Text style={styles.focusStop}>
+                  {driverSharingLocation
+                    ? 'Polling passenger locations'
+                    : 'Start sharing to show users'}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 
         <View style={styles.rosterHeader}>
-          <Text style={styles.sectionTitle}>Passenger list</Text>
-              <Text style={styles.sectionMeta}>
-                {pickedUpPassengerIds.length} picked up, {remainingPassengers.length} pending
-              </Text>
+          <View>
+            <Text style={styles.sectionTitle}>Passenger list</Text>
+            {rosterCanCollapse && (
+              <Pressable
+                onPress={() => setRosterExpanded((current) => !current)}
+                style={({ pressed }) => [
+                  styles.rosterCollapseButton,
+                  pressed && styles.buttonPressed,
+                ]}
+              >
+                <Text style={styles.rosterCollapseText}>
+                  {rosterExpanded ? 'Hide picked up' : 'Show picked up'}
+                </Text>
+              </Pressable>
+            )}
+          </View>
+          <Text style={styles.sectionMeta}>
+            {pickedUpPassengerIds.length} picked up, {remainingPassengers.length} pending
+          </Text>
         </View>
 
-        <View style={styles.roster}>
-          {passengers.map((passenger) => (
-            <PassengerRow
-              key={passenger.id}
-              isPickedUp={pickedUpPassengerIds.includes(passenger.id)}
-              isSelected={selectedPassengerId === passenger.id}
-              passenger={passenger}
-              onSelect={() => setSelectedPassengerId(passenger.id)}
-              onTogglePickup={() => togglePassengerPickup(passenger.id)}
-            />
-          ))}
+        <View style={styles.addPassengerPanel}>
+          <Pressable
+            onPress={() => setAddPassengerOpen((current) => !current)}
+            style={({ pressed }) => [
+              styles.addPassengerToggle,
+              pressed && styles.buttonPressed,
+            ]}
+          >
+            <Text style={styles.addPassengerToggleText}>
+              {addPassengerOpen ? 'Close' : 'Add passenger'}
+            </Text>
+          </Pressable>
+
+          {addPassengerOpen && (
+            <View style={styles.addPassengerForm}>
+              <View style={styles.formRow}>
+                <TextInput
+                  autoCapitalize="characters"
+                  onChangeText={(value) => updatePassengerForm('ticketNumber', value)}
+                  placeholder="Ticket number"
+                  placeholderTextColor="#8a8174"
+                  style={[styles.formInput, styles.formInputCompact]}
+                  value={passengerForm.ticketNumber}
+                />
+                <TextInput
+                  onChangeText={(value) => updatePassengerForm('phone', value)}
+                  keyboardType="phone-pad"
+                  placeholder="Phone number"
+                  placeholderTextColor="#8a8174"
+                  style={styles.formInput}
+                  value={passengerForm.phone}
+                />
+              </View>
+              <TextInput
+                onChangeText={(value) => updatePassengerForm('name', value)}
+                placeholder="Passenger name"
+                placeholderTextColor="#8a8174"
+                style={styles.formInput}
+                value={passengerForm.name}
+              />
+              <TextInput
+                onChangeText={(value) => updatePassengerForm('routeInfo', value)}
+                placeholder="Route info"
+                placeholderTextColor="#8a8174"
+                style={styles.formInput}
+                value={passengerForm.routeInfo}
+              />
+              <Pressable
+                onPress={addPassenger}
+                style={({ pressed }) => [
+                  styles.addPassengerSubmit,
+                  pressed && styles.buttonPressed,
+                ]}
+              >
+                <Text style={styles.addPassengerSubmitText}>Save passenger</Text>
+              </Pressable>
+            </View>
+          )}
         </View>
+
+        {rosterExpanded && (
+          <View style={styles.roster}>
+            {sortedPassengers.map((passenger) => (
+              <PassengerRow
+                key={passenger.id}
+                isPickedUp={pickedUpPassengerIds.includes(passenger.id)}
+                isSelected={selectedPassengerId === passenger.id}
+                isLocationSent={locationSentPassengerIds.includes(passenger.id)}
+                passenger={passenger}
+                onSendLocation={() => {
+                  void sendDriverLocation(passenger);
+                }}
+                onTogglePickup={() => togglePassengerPickup(passenger.id)}
+              />
+            ))}
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -417,44 +668,84 @@ export default function App() {
 
 function PassengerRow({
   isPickedUp,
+  isLocationSent,
   isSelected,
   passenger,
-  onSelect,
+  onSendLocation,
   onTogglePickup,
 }: {
   isPickedUp: boolean;
+  isLocationSent: boolean;
   isSelected: boolean;
   passenger: Passenger;
-  onSelect: () => void;
+  onSendLocation: () => void;
   onTogglePickup: () => void;
 }) {
+  const statusLabel = isPickedUp
+    ? 'Done'
+    : isLocationSent
+      ? 'Sent'
+      : statusCopy[passenger.status];
+  const lastSeenLabel = isPickedUp
+    ? 'Pickup done'
+    : isLocationSent
+      ? 'SMS ready'
+      : formatCapturedAtLabel(passenger.lastSeen);
+
   return (
-    <Pressable
-      onPress={onSelect}
-      style={({ pressed }) => [
+    <View
+      style={[
         styles.passengerRow,
         isSelected && styles.passengerRowSelected,
         isPickedUp && styles.passengerRowPickedUp,
-        pressed && styles.buttonPressed,
       ]}
     >
-      <View style={[styles.avatar, isPickedUp && styles.avatarPickedUp]}>
-        <Text style={[styles.avatarText, isPickedUp && styles.avatarTextPickedUp]}>
-          {passenger.name.charAt(0)}
-        </Text>
-      </View>
       <View style={styles.passengerInfo}>
         <Text style={[styles.passengerName, isPickedUp && styles.passengerNamePickedUp]}>
-          {passenger.name}
+          {getFirstName(passenger.name)}
         </Text>
-        <Text style={styles.passengerStop}>{passenger.stop}</Text>
+        {(passenger.ticketNumber || passenger.routeInfo) && (
+          <Text numberOfLines={1} style={styles.passengerRoute}>
+            {[passenger.ticketNumber && `Ticket ${passenger.ticketNumber}`, passenger.routeInfo]
+              .filter(Boolean)
+              .join(' - ')}
+          </Text>
+        )}
         <Text style={styles.passengerPhone}>{passenger.phone}</Text>
       </View>
       <View style={styles.passengerStatus}>
-        <Text style={[styles.statusText, styles[`${passenger.status}Text`]]}>
-          {statusCopy[passenger.status]}
+        <Text
+          style={[
+            styles.statusText,
+            isPickedUp
+              ? styles.doneText
+              : isLocationSent
+                ? styles.sentText
+                : styles[`${passenger.status}Text`],
+          ]}
+        >
+          {statusLabel}
         </Text>
-        <Text style={styles.lastSeen}>{isPickedUp ? 'Pickup done' : passenger.lastSeen}</Text>
+        <Text style={styles.lastSeen}>{lastSeenLabel}</Text>
+      </View>
+      <View style={styles.passengerActions}>
+        <Pressable
+          onPress={onSendLocation}
+          style={({ pressed }) => [
+            styles.locationToggle,
+            isLocationSent && styles.locationToggleSent,
+            pressed && styles.buttonPressed,
+          ]}
+        >
+          <Text
+            style={[
+              styles.locationToggleText,
+              isLocationSent && styles.locationToggleTextSent,
+            ]}
+          >
+            {isLocationSent ? 'Resend' : 'Send'}
+          </Text>
+        </Pressable>
         <Pressable
           onPress={onTogglePickup}
           style={({ pressed }) => [
@@ -469,86 +760,153 @@ function PassengerRow({
               isPickedUp ? styles.pickupToggleTextDone : styles.pickupToggleTextPending,
             ]}
           >
-            {isPickedUp ? 'Picked up' : 'Mark pickup'}
+            {isPickedUp ? 'Undo' : 'Pickup'}
           </Text>
         </Pressable>
       </View>
-    </Pressable>
+    </View>
   );
 }
 
-function getPickupOrder(
-  start: LocationPoint,
-  destination: LocationPoint,
-  stops: Passenger[],
+function getDriverLocationSmsUrl(passenger: Passenger, riderUrl: string) {
+  const body = encodeURIComponent(
+    `Hi ${passenger.name}, track my live pickup location in the SumoHaice rider app: ${riderUrl}`,
+  );
+  const separator = Platform.OS === 'ios' ? '&' : '?';
+
+  return `sms:${passenger.phone.replace(/\s/g, '')}${separator}body=${body}`;
+}
+
+function getFirstName(name: string) {
+  return name.trim().split(/\s+/)[0] || name;
+}
+
+function formatDeviceClock(date: Date) {
+  const formattedTime = new Intl.DateTimeFormat(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  }).formatToParts(date);
+  const hour = formattedTime.find((part) => part.type === 'hour')?.value ?? '00';
+  const minute = formattedTime.find((part) => part.type === 'minute')?.value ?? '00';
+  const period = formattedTime.find((part) => part.type === 'dayPeriod')?.value ?? '';
+
+  return {
+    time: `${hour}:${minute}`,
+    period: period.toUpperCase(),
+  };
+}
+
+function locationToPassenger(location: UserLocationInfo): Passenger {
+  return {
+    id: location.userId ?? normalizePhoneNumber(location.phoneNumber) ?? `${location.latitude}-${location.longitude}`,
+    name: location.userName ?? location.name ?? 'Passenger',
+    stop: 'Live location',
+    eta: '--',
+    phone: location.phoneNumber ?? '',
+    status: 'ready',
+    lastSeen: location.capturedAt ?? '',
+    latitude: location.latitude,
+    longitude: location.longitude,
+  };
+}
+
+function mergePassengerRoster(
+  currentPassengers: Passenger[],
+  incomingPassengers: Passenger[],
 ) {
-  return [...stops].sort((first, second) => {
-    const firstProgress = getProgressAlongRoute(start, destination, first);
-    const secondProgress = getProgressAlongRoute(start, destination, second);
+  const passengerById = new Map(
+    currentPassengers.map((passenger) => [passenger.id, passenger]),
+  );
 
-    if (firstProgress !== secondProgress) {
-      return firstProgress - secondProgress;
-    }
+  incomingPassengers.forEach((passenger) => {
+    passengerById.set(passenger.id, {
+      ...passengerById.get(passenger.id),
+      ...passenger,
+    });
+  });
 
-    return getDistanceKm(start, first) - getDistanceKm(start, second);
+  return Array.from(passengerById.values());
+}
+
+function formatCapturedAtLabel(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return `Updated ${date.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  })}`;
+}
+
+function normalizePhoneNumber(phoneNumber?: string) {
+  return phoneNumber?.replace(/\D/g, '') ?? '';
+}
+
+async function createLocationShare(location: LocationPoint): Promise<LocationShare> {
+  const capturedAt = new Date();
+  const expiresAt = new Date(capturedAt.getTime() + 3 * 60 * 60 * 1000);
+  const payload = {
+    location,
+    capturedAt: capturedAt.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+  };
+
+  // Placeholder for backend integration:
+  // return fetch(`${API_BASE_URL}/location-shares`, {
+  //   method: 'POST',
+  //   headers: { 'Content-Type': 'application/json' },
+  //   body: JSON.stringify(payload),
+  // }).then((response) => response.json());
+  return Promise.resolve({
+    shareId: 'loc_123',
+    shareToken: 'share_abc123',
+    riderUrl: 'https://sumohaice.app/rider/location/share_abc123',
+    ...payload,
   });
 }
 
-function getProgressAlongRoute(
-  start: LocationPoint,
-  destination: LocationPoint,
-  point: LocationPoint,
-) {
-  const routeLatitude = destination.latitude - start.latitude;
-  const routeLongitude = destination.longitude - start.longitude;
-  const pointLatitude = point.latitude - start.latitude;
-  const pointLongitude = point.longitude - start.longitude;
-  const routeLength = routeLatitude * routeLatitude + routeLongitude * routeLongitude;
+async function updateLocationShare(
+  currentShare: LocationShare,
+  location: LocationPoint,
+): Promise<LocationShare> {
+  const capturedAt = new Date();
+  const payload = {
+    location,
+    capturedAt: capturedAt.toISOString(),
+  };
 
-  if (routeLength === 0) {
-    return 0;
-  }
-
-  const progress =
-    (pointLatitude * routeLatitude + pointLongitude * routeLongitude) / routeLength;
-
-  return Math.min(Math.max(progress, 0), 1);
+  // Placeholder for backend integration:
+  // return fetch(`${API_BASE_URL}/location-shares/${currentShare.shareId}/location`, {
+  //   method: 'PATCH',
+  //   headers: { 'Content-Type': 'application/json' },
+  //   body: JSON.stringify(payload),
+  // }).then((response) => response.json());
+  return Promise.resolve({
+    ...currentShare,
+    ...payload,
+  });
 }
 
-function getRouteDistanceKm(
-  start: LocationPoint,
-  stops: LocationPoint[],
-  destination: LocationPoint,
-) {
-  const route = [start, ...stops, destination];
+async function getUserLocation(): Promise<UserLocationInfo[]> {
+  try {
+    const response = await fetch(backendUserLocationsApiUrl);
 
-  return route.reduce((total, point, index) => {
-    if (index === 0) {
-      return total;
+    if (!response.ok) {
+      return [];
     }
 
-    return total + getDistanceKm(route[index - 1], point);
-  }, 0);
-}
-
-function getDistanceKm(first: LocationPoint, second: LocationPoint) {
-  const earthRadiusKm = 6371;
-  const latitudeDelta = toRadians(second.latitude - first.latitude);
-  const longitudeDelta = toRadians(second.longitude - first.longitude);
-  const firstLatitude = toRadians(first.latitude);
-  const secondLatitude = toRadians(second.latitude);
-  const haversine =
-    Math.sin(latitudeDelta / 2) * Math.sin(latitudeDelta / 2) +
-    Math.cos(firstLatitude) *
-      Math.cos(secondLatitude) *
-      Math.sin(longitudeDelta / 2) *
-      Math.sin(longitudeDelta / 2);
-
-  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
-}
-
-function toRadians(degrees: number) {
-  return (degrees * Math.PI) / 180;
+    const data = (await response.json()) as UserLocationInfo[];
+    return data.filter(
+      (location) =>
+        Number.isFinite(location.latitude) && Number.isFinite(location.longitude),
+    );
+  } catch {
+    return [];
+  }
 }
 
 const styles = StyleSheet.create({
@@ -698,70 +1056,6 @@ const styles = StyleSheet.create({
   stopSharingText: {
     color: '#b93820',
   },
-  exitSelector: {
-    backgroundColor: '#fffaf1',
-    borderColor: '#eadfce',
-    borderRadius: 8,
-    borderWidth: 1,
-    gap: 10,
-    padding: 12,
-  },
-  exitSelectorHeader: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 12,
-    justifyContent: 'space-between',
-  },
-  exitSelectorTitle: {
-    color: '#17211f',
-    fontSize: 14,
-    fontWeight: '900',
-  },
-  exitSelectorMeta: {
-    color: '#66716e',
-    fontSize: 12,
-    marginTop: 3,
-  },
-  exitRouteDistance: {
-    color: '#2559af',
-    fontSize: 13,
-    fontWeight: '900',
-  },
-  exitOptions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  exitOption: {
-    backgroundColor: '#f4efe6',
-    borderColor: '#eadfce',
-    borderRadius: 8,
-    borderWidth: 1,
-    flex: 1,
-    minHeight: 58,
-    paddingHorizontal: 9,
-    paddingVertical: 9,
-  },
-  exitOptionSelected: {
-    backgroundColor: '#e4eefc',
-    borderColor: '#2d6cdf',
-  },
-  exitOptionName: {
-    color: '#1f2d2b',
-    fontSize: 13,
-    fontWeight: '900',
-  },
-  exitOptionNameSelected: {
-    color: '#2559af',
-  },
-  exitOptionCorridor: {
-    color: '#66716e',
-    fontSize: 10,
-    lineHeight: 13,
-    marginTop: 3,
-  },
-  exitOptionCorridorSelected: {
-    color: '#2559af',
-  },
   mapPanel: {
     backgroundColor: '#fffaf1',
     borderColor: '#eadfce',
@@ -788,11 +1082,6 @@ const styles = StyleSheet.create({
     color: '#66716e',
     fontSize: 13,
     marginTop: 4,
-  },
-  distanceText: {
-    color: '#2d6cdf',
-    fontSize: 14,
-    fontWeight: '900',
   },
   openMapButton: {
     alignItems: 'center',
@@ -847,19 +1136,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 3,
   },
-  expandedDistanceBadge: {
-    alignItems: 'center',
-    backgroundColor: '#e4eefc',
-    borderRadius: 8,
-    justifyContent: 'center',
-    minHeight: 38,
-    paddingHorizontal: 10,
-  },
-  expandedDistanceText: {
-    color: '#2559af',
-    fontSize: 13,
-    fontWeight: '900',
-  },
   expandedMapPanel: {
     borderColor: '#eadfce',
     borderRadius: 8,
@@ -909,10 +1185,92 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginTop: 2,
   },
+  focusPickupButton: {
+    alignItems: 'center',
+    backgroundColor: '#e4eefc',
+    borderRadius: 8,
+    justifyContent: 'center',
+    marginTop: 8,
+    minHeight: 30,
+    minWidth: 104,
+    paddingHorizontal: 10,
+  },
+  focusPickupText: {
+    color: '#2559af',
+    fontSize: 12,
+    fontWeight: '900',
+  },
   rosterHeader: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
+  },
+  rosterCollapseButton: {
+    alignSelf: 'flex-start',
+    marginTop: 4,
+  },
+  rosterCollapseText: {
+    color: '#2559af',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  addPassengerPanel: {
+    backgroundColor: '#fffaf1',
+    borderColor: '#eadfce',
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 10,
+    padding: 10,
+  },
+  addPassengerToggle: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: '#e4eefc',
+    borderRadius: 8,
+    justifyContent: 'center',
+    minHeight: 34,
+    paddingHorizontal: 12,
+  },
+  addPassengerToggleText: {
+    color: '#2559af',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  addPassengerForm: {
+    gap: 8,
+  },
+  formRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  formInput: {
+    backgroundColor: '#ffffff',
+    borderColor: '#eadfce',
+    borderRadius: 8,
+    borderWidth: 1,
+    color: '#17211f',
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '700',
+    minHeight: 40,
+    paddingHorizontal: 10,
+  },
+  formInputCompact: {
+    flex: 0.8,
+  },
+  addPassengerSubmit: {
+    alignItems: 'center',
+    alignSelf: 'flex-end',
+    backgroundColor: '#dff4e8',
+    borderRadius: 8,
+    justifyContent: 'center',
+    minHeight: 36,
+    paddingHorizontal: 14,
+  },
+  addPassengerSubmitText: {
+    color: '#14734b',
+    fontSize: 13,
+    fontWeight: '900',
   },
   roster: {
     gap: 10,
@@ -924,8 +1282,10 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     flexDirection: 'row',
-    gap: 12,
-    padding: 12,
+    gap: 8,
+    minHeight: 54,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
   },
   passengerRowSelected: {
     borderColor: '#2d6cdf',
@@ -960,7 +1320,7 @@ const styles = StyleSheet.create({
   },
   passengerName: {
     color: '#17211f',
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
   },
   passengerNamePickedUp: {
@@ -971,17 +1331,23 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 3,
   },
+  passengerRoute: {
+    color: '#66716e',
+    fontSize: 10,
+    fontWeight: '800',
+    marginTop: 1,
+  },
   passengerPhone: {
     color: '#8a8174',
-    fontSize: 12,
-    marginTop: 3,
+    fontSize: 11,
+    marginTop: 1,
   },
   passengerStatus: {
     alignItems: 'flex-end',
-    maxWidth: 128,
+    width: 58,
   },
   statusText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '900',
     textAlign: 'right',
   },
@@ -994,20 +1360,50 @@ const styles = StyleSheet.create({
   offlineText: {
     color: '#68706c',
   },
+  sentText: {
+    color: '#2559af',
+  },
+  doneText: {
+    color: '#14734b',
+  },
   lastSeen: {
     color: '#8a8174',
-    fontSize: 11,
-    marginTop: 4,
+    fontSize: 9,
+    marginTop: 1,
     textAlign: 'right',
+  },
+  passengerActions: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 6,
+  },
+  locationToggle: {
+    alignItems: 'center',
+    backgroundColor: '#e4eefc',
+    borderRadius: 8,
+    justifyContent: 'center',
+    minHeight: 30,
+    minWidth: 62,
+    paddingHorizontal: 8,
+  },
+  locationToggleSent: {
+    backgroundColor: '#eef3fb',
+  },
+  locationToggleText: {
+    color: '#2559af',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  locationToggleTextSent: {
+    color: '#5e6f8b',
   },
   pickupToggle: {
     alignItems: 'center',
     borderRadius: 8,
     justifyContent: 'center',
-    marginTop: 8,
     minHeight: 30,
-    minWidth: 96,
-    paddingHorizontal: 10,
+    minWidth: 68,
+    paddingHorizontal: 8,
   },
   pickupTogglePending: {
     backgroundColor: '#e4eefc',
@@ -1016,7 +1412,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#dff4e8',
   },
   pickupToggleText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '900',
   },
   pickupToggleTextPending: {

@@ -94,6 +94,14 @@ const isChromeGeolocationAllowed = () => {
   );
 };
 
+const isMobileBrowser = () => {
+  if (Platform.OS !== 'web') {
+    return false;
+  }
+
+  return /Android|iPhone|iPad|iPod/i.test(globalThis.navigator.userAgent);
+};
+
 export default function App() {
   const [currentLocation, setCurrentLocation] = useState<CurrentLocation | null>(null);
   const [statusMessage, setStatusMessage] = useState('Share location to continue');
@@ -353,6 +361,16 @@ export default function App() {
     return `Here is my current location: ${mapsUrl}`;
   };
 
+  const openSmsComposerFromWeb = (message: string) => {
+    const userAgent = globalThis.navigator.userAgent;
+    const encodedMessage = encodeURIComponent(message);
+    const smsUrl = /iPhone|iPad|iPod/i.test(userAgent)
+      ? `sms:${FRIEND_PHONE_NUMBER}&body=${encodedMessage}`
+      : `sms:${FRIEND_PHONE_NUMBER}?body=${encodedMessage}`;
+
+    globalThis.location.href = smsUrl;
+  };
+
   const sendLocationSmsFromWeb = async (message: string) => {
     const response = await fetch(SMS_API_URL, {
       method: 'POST',
@@ -380,6 +398,12 @@ export default function App() {
       const message = createLocationSmsMessage(currentLocation);
 
       if (Platform.OS === 'web') {
+        if (isMobileBrowser()) {
+          openSmsComposerFromWeb(message);
+          setSmsStatusMessage('Opening Messages...');
+          return;
+        }
+
         setSmsStatusMessage('Sending SMS...');
         await sendLocationSmsFromWeb(message);
         setSmsStatusMessage('SMS sent');

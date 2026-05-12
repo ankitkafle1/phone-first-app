@@ -14,62 +14,33 @@ type DriverMapProps = {
     longitude: number;
   };
   driverSharingLocation: boolean;
-  finalDestination: {
-    name: string;
-    shortName: string;
-    latitude: number;
-    longitude: number;
-  };
   height?: number;
   passengers: Passenger[];
-  routeStops: Passenger[];
   selectedPassengerId: string;
-  onRouteResolved?: (summary: {
-    distanceKm: number;
-    durationText: string;
-    waypointOrder: number[];
-    source: 'google' | 'fallback';
-  }) => void;
   onSelectPassenger: (passengerId: string) => void;
 };
 
 export default function DriverMap({
   driverLocation,
   driverSharingLocation,
-  finalDestination,
   height = 430,
   passengers,
-  routeStops,
   selectedPassengerId,
   onSelectPassenger,
 }: DriverMapProps) {
-  const routePath = [driverLocation, ...routeStops, finalDestination];
-
   return (
     <View style={[styles.mapCanvas, { height }]}>
       <View style={[styles.road, styles.roadOne]} />
       <View style={[styles.road, styles.roadTwo]} />
       <View style={[styles.road, styles.roadThree]} />
-      {routePath.slice(0, -1).map((point, index) => (
-        <View
-          key={`${point.latitude}-${point.longitude}-${index}`}
-          style={[
-            styles.routeSegment,
-            getRouteSegmentStyle(point, routePath[index + 1]),
-          ]}
-        />
-      ))}
       <View
         style={[
           styles.driverMarker,
-          driverSharingLocation ? styles.driverMarkerSharing : styles.driverMarkerHidden,
+          styles.driverMarkerRed,
           getMarkerPosition(driverLocation),
         ]}
       >
         <Text style={styles.driverMarkerText}>D</Text>
-      </View>
-      <View style={[styles.destinationMarker, getMarkerPosition(finalDestination)]}>
-        <Text style={styles.destinationMarkerText}>{finalDestination.shortName}</Text>
       </View>
       {passengers.map((passenger) => (
         <Pressable
@@ -84,30 +55,13 @@ export default function DriverMap({
             getMarkerPosition(passenger),
           ]}
         >
-          <Text style={styles.passengerMarkerText}>{passenger.name.charAt(0)}</Text>
+          <Text numberOfLines={1} style={styles.passengerMarkerText}>
+            {getFirstName(passenger.name)}
+          </Text>
         </Pressable>
       ))}
     </View>
   );
-}
-
-function getRouteSegmentStyle(
-  first: { latitude: number; longitude: number },
-  second: { latitude: number; longitude: number },
-) {
-  const start = getMarkerPositionValue(first);
-  const end = getMarkerPositionValue(second);
-  const deltaX = end.left - start.left;
-  const deltaY = end.top - start.top;
-  const length = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-  const angle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
-
-  return {
-    left: `${start.left}%` as const,
-    top: `${start.top}%` as const,
-    transform: [{ rotate: `${angle}deg` }],
-    width: `${length}%` as const,
-  };
 }
 
 function getMarkerPosition(location: { latitude: number; longitude: number }) {
@@ -136,6 +90,10 @@ function getMarkerPositionValue(location: { latitude: number; longitude: number 
     left: Math.min(Math.max(left, 8), 92),
     top: Math.min(Math.max(top, 8), 92),
   };
+}
+
+function getFirstName(name: string) {
+  return name.trim().split(/\s+/)[0] || name;
 }
 
 const styles = StyleSheet.create({
@@ -171,14 +129,6 @@ const styles = StyleSheet.create({
     transform: [{ rotate: '18deg' }],
     width: 300,
   },
-  routeSegment: {
-    backgroundColor: '#2d6cdf',
-    borderRadius: 2,
-    height: 4,
-    marginTop: -2,
-    position: 'absolute',
-    zIndex: 1,
-  },
   driverMarker: {
     alignItems: 'center',
     borderColor: '#fffaf1',
@@ -192,10 +142,7 @@ const styles = StyleSheet.create({
     width: 42,
     zIndex: 3,
   },
-  driverMarkerSharing: {
-    backgroundColor: '#1f9a63',
-  },
-  driverMarkerHidden: {
+  driverMarkerRed: {
     backgroundColor: '#d8482f',
   },
   driverMarkerText: {
@@ -208,32 +155,14 @@ const styles = StyleSheet.create({
     borderColor: '#ffffff',
     borderRadius: 8,
     borderWidth: 3,
-    height: 36,
+    height: 32,
     justifyContent: 'center',
-    marginLeft: -18,
-    marginTop: -18,
+    marginLeft: -32,
+    marginTop: -16,
+    paddingHorizontal: 6,
     position: 'absolute',
-    width: 36,
+    width: 64,
     zIndex: 2,
-  },
-  destinationMarker: {
-    alignItems: 'center',
-    backgroundColor: '#2d6cdf',
-    borderColor: '#ffffff',
-    borderRadius: 8,
-    borderWidth: 3,
-    height: 44,
-    justifyContent: 'center',
-    marginLeft: -22,
-    marginTop: -22,
-    position: 'absolute',
-    width: 44,
-    zIndex: 3,
-  },
-  destinationMarkerText: {
-    color: '#ffffff',
-    fontSize: 11,
-    fontWeight: '900',
   },
   passengerMarkerReady: {
     backgroundColor: '#1f9a63',
@@ -250,7 +179,7 @@ const styles = StyleSheet.create({
   },
   passengerMarkerText: {
     color: '#ffffff',
-    fontSize: 14,
+    fontSize: 10,
     fontWeight: '900',
   },
 });
